@@ -1,13 +1,13 @@
-COLLECTED_AT_UTC=2026-06-23T14:33:53Z
-HOST_UPTIME= 16:33:53 up 3 days,  5:03,  4 users,  load average: 1.04, 1.00, 0.93
-ROOT_DISK=used=16% available_kb=425858736
-MEMORY=used_mb=6068 available_mb=42105 total_mb=48174
+COLLECTED_AT_UTC=2026-06-23T23:50:57Z
+HOST_UPTIME= 01:50:57 up 3 days, 14:20,  4 users,  load average: 0.69, 0.72, 0.80
+ROOT_DISK=used=17% available_kb=423975076
+MEMORY=used_mb=7832 available_mb=40342 total_mb=48174
 
 [COMPOSE]
-sarl-hermes-workspace image=sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse status=Up 26 hours (healthy) ports=127.0.0.1:3000->3000/tcp
-sarl-hermes-agent image=sarl/hermes-agent:0.17.0-ddgs1 status=Up 27 hours (healthy) ports=127.0.0.1:8642->8642/tcp
-sarl-project-memory-mcp image=sarl/project-memory-mcp:0.2.0 status=Up 32 hours (healthy) ports=8000/tcp
-sarl-sandbox-docker image=docker:27-dind status=Up 32 hours ports=2375-2376/tcp
+sarl-hermes-workspace image=sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse status=Up 36 hours (healthy) ports=127.0.0.1:3000->3000/tcp
+sarl-hermes-agent image=sarl/hermes-agent:0.17.0-ddgs1 status=Up 36 hours (healthy) ports=127.0.0.1:8642->8642/tcp
+sarl-project-memory-mcp image=sarl/project-memory-mcp:0.2.0 status=Up 41 hours (healthy) ports=8000/tcp
+sarl-sandbox-docker image=docker:27-dind status=Up 41 hours ports=2375-2376/tcp
 
 [ENDPOINTS]
 hermes_health={"status": "ok", "platform": "hermes-agent", "version": "0.17.0"}
@@ -28,4 +28,4 @@ sarl-sandbox-docker errors=0 warnings=0
 Result=success
 ExecMainStatus=0
 ActiveState=activating
-StateChangeTimestamp=Tue 2026-06-23 16:33:52 CEST
+StateChangeTimestamp=Wed 2026-06-24 01:50:56 CEST
