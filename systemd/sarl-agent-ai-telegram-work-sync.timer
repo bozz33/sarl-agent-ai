@@ -1,0 +1,12 @@
+[Unit]
+Description=Synchronize Telegram missions into Workspace every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=true
+Unit=sarl-agent-ai-telegram-work-sync.service
+
+[Install]
+WantedBy=timers.target

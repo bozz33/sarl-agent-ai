@@ -1,0 +1,40 @@
+project_id: __PROJECT_ID__
+name: __PROJECT_NAME__
+status: inactive
+owner: Alain Francis
+visibility: internal
+load_on_start: false
+workers_autostart: false
+
+workspace:
+  root: /workspace/__PROJECT_ID__
+  host_root: /root/CascadeProjects/SARL-agent-ai/projects/__PROJECT_ID__
+
+memory:
+  backend: sarl-project-memory-mcp
+  state: planned
+  project_id: __PROJECT_ID__
+  write_policy: validated_or_tagged
+  truth_status_required: true
+
+kanban:
+  board: __PROJECT_ID__
+  state: planned
+
+agents:
+  default_orchestrator: sarl-orchestrator
+  builder: code-builder
+  reviewer: code-reviewer
+  qa: qa-agent
+  scribe: docs-scribe
+  research: research-sage
+
+human_validation_required_for:
+  - production
+  - deployment
+  - database_migration
+  - data_deletion
+  - public_publication
+  - secrets
+  - client_final_delivery
+

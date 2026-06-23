@@ -1,0 +1,11 @@
+[Unit]
+Description=Clean duplicate Hermes Workspace log-tail PTYs
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/CascadeProjects/SARL-agent-ai/scripts/run-workspace-janitor.sh
+User=root
+Group=root
+Nice=10

@@ -1,0 +1,11 @@
+[Unit]
+Description=Synchronize durable Telegram missions into Hermes Kanban
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/CascadeProjects/SARL-agent-ai/scripts/run-telegram-work-sync.sh
+User=root
+Group=root
+Nice=10

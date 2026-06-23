@@ -1,0 +1,11 @@
+[Unit]
+Description=SARL-Agent-AI supervised Hermes profile cron tick
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/CascadeProjects/SARL-agent-ai/scripts/run-supervised-cron-tick.sh
+User=root
+Group=root
+Nice=10

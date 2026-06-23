@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodically clean duplicate Hermes Workspace log-tail PTYs
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Persistent=true
+Unit=sarl-workspace-janitor.service
+
+[Install]
+WantedBy=timers.target

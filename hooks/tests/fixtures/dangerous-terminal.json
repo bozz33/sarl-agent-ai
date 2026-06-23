@@ -1,0 +1,8 @@
+{
+  "tool_name": "terminal",
+  "tool_input": {
+    "command": "docker compose down"
+  },
+  "session_id": "acceptance-hook-test",
+  "cwd": "/workspace"
+}

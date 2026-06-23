@@ -1,0 +1,35 @@
+services:
+  sandbox-docker:
+    image: docker:27-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce
+    container_name: sarl-sandbox-docker
+    restart: unless-stopped
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - dockerd
+      - --host=tcp://0.0.0.0:2375
+      - --host=unix:///var/run/docker.sock
+      - --iptables=true
+      - --icc=false
+      - --userland-proxy=false
+    expose:
+      - "2375"
+    volumes:
+      - sandbox-docker-data:/var/lib/docker
+    networks:
+      - sandbox-control
+
+  hermes-agent:
+    environment:
+      DOCKER_HOST: tcp://sandbox-docker:2375
+    networks:
+      - default
+      - sandbox-control
+
+networks:
+  sandbox-control:
+    internal: true
+
+volumes:
+  sandbox-docker-data:

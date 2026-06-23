@@ -1,0 +1,16 @@
+# Projet : __PROJECT_NAME__
+
+Project ID : `__PROJECT_ID__`
+
+## Regles
+
+1. Lire ce fichier avant toute mission.
+2. Ne jamais melanger ce projet avec un autre.
+3. Consulter la memoire projet avant une decision importante.
+4. Ne pas deployer, migrer, supprimer ou publier sans validation humaine.
+5. Utiliser un worktree dedie pour toute modification de code.
+6. Produire un rapport final dans `reports/`.
+
+## Etat de demarrage
+
+Projet inactif. Aucun worker automatique.

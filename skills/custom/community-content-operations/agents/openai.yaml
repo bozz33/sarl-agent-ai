@@ -1,0 +1,4 @@
+interface:
+  display_name: "Community Content Operations"
+  short_description: "Stratégie sociale, contenu et mesure maîtrisés"
+  default_prompt: "Use $community-content-operations to build a channel-specific content plan with compliance and measurement."

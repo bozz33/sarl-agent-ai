@@ -1,0 +1,118 @@
+services:
+  hermes-agent:
+    image: sarl/hermes-agent:0.17.0-ddgs1
+    container_name: sarl-hermes-agent
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    env_file:
+      - .secrets/hermes-api.env
+      - .secrets/providers.env
+      - .secrets/telegram.env
+    environment:
+      HERMES_UID: "10010"
+      HERMES_DASHBOARD: "1"
+      HERMES_DASHBOARD_HOST: "0.0.0.0"
+      HERMES_DASHBOARD_PORT: "9119"
+      HERMES_DASHBOARD_INSECURE: "true"
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: "0.0.0.0"
+      DOCKER_HOST: unix:///opt/sandbox-shared/docker.sock
+      TERMINAL_SANDBOX_DIR: /opt/sandbox-shared
+    volumes:
+      - hermes-agent-data:/opt/data
+      - sandbox-shared:/opt/sandbox-shared
+      - ./projects:/workspace
+      - ./runtime-observability:/opt/sarl-observability:ro
+      - ./skills/custom:/opt/custom-skills:ro
+      - ./hooks:/opt/sarl-hooks:ro
+      - ./reports:/opt/sarl-reports:ro
+      - ./scripts/sync-telegram-work.py:/opt/sarl-maintenance/sync-telegram-work.py:ro
+      - ./scripts/apply-knowledge-validation.py:/opt/sarl-maintenance/apply-knowledge-validation.py:ro
+      - ./.secrets/ssh:/opt/hermes-ssh:ro
+    networks:
+      - default
+      - sandbox-control
+    ports:
+      - "127.0.0.1:8642:8642"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8642/health && curl -fsS http://localhost:9119/api/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 900s
+
+  hermes-workspace:
+    image: sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse
+    container_name: sarl-hermes-workspace
+    restart: unless-stopped
+    depends_on:
+      hermes-agent:
+        condition: service_healthy
+    env_file:
+      - .secrets/workspace.env
+    environment:
+      HERMES_HOME: /home/workspace/.hermes
+      HERMES_WORKSPACE_DIR: /workspace
+      HERMES_API_URL: http://hermes-agent:8642
+      HERMES_DASHBOARD_URL: http://hermes-agent:9119
+    volumes:
+      - hermes-agent-data:/home/workspace/.hermes
+      - ./projects:/workspace
+      - ./skills/custom:/opt/custom-skills:ro
+      - ./swarm.yaml:/app/swarm.yaml
+      - ./workspace-runtime:/app/.runtime
+      - ./scripts/workspace-pty-janitor.py:/opt/sarl-maintenance/workspace-pty-janitor.py:ro
+      - ./.secrets/ssh:/opt/hermes-ssh:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  project-memory-mcp:
+    image: sarl/project-memory-mcp:0.2.0
+    container_name: sarl-project-memory-mcp
+    restart: unless-stopped
+    env_file:
+      - .secrets/project-memory.env
+      - .secrets/providers.env
+    volumes:
+      - /var/run/postgresql:/var/run/postgresql
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1', 8000), 3).close()"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  sandbox-docker:
+    image: docker:27-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce
+    container_name: sarl-sandbox-docker
+    restart: unless-stopped
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - dockerd
+      - --host=unix:///opt/sandbox-shared/docker.sock
+      - --group=10000
+      - --iptables=true
+      - --icc=false
+      - --userland-proxy=false
+    volumes:
+      - sandbox-docker-data:/var/lib/docker
+      - sandbox-shared:/opt/sandbox-shared
+    networks:
+      - sandbox-control
+
+networks:
+  sandbox-control:
+    internal: true
+
+volumes:
+  hermes-agent-data:
+  sandbox-docker-data:
+  sandbox-shared:

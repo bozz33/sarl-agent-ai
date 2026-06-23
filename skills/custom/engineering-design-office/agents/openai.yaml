@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bureau Études Engineering"
+  short_description: "Études techniques traçables et vérifiables"
+  default_prompt: "Use $engineering-design-office to produce a traceable engineering study with assumptions, units, checks, and review gates."

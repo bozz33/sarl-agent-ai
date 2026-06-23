@@ -1,0 +1,6 @@
+hooks:
+  pre_tool_call:
+    - matcher: "terminal|execute_code|write_file|patch"
+      command: "/opt/sarl-hooks/sarl-policy-guard.py"
+      timeout: 5
+hooks_auto_accept: false

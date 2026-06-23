@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design 3D Production"
+  short_description: "Conception 3D, rendu et livrables contrôlés"
+  default_prompt: "Use $design-3d-production to prepare a production-ready 3D workflow with validated sources."

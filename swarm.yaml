@@ -1,0 +1,86 @@
+version: 1
+workers:
+  - id: sarl-router
+    name: SARL Router
+    role: Custom
+    specialty: Triage economique, classification du risque et choix du profil cible.
+    model: openrouter/poolside/laguna-m.1:free
+    mission: Router les demandes sans executer les missions longues.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-routing-and-escalation
+      - sarl-cost-control
+    capabilities:
+      - routing
+      - triage
+      - cost-control
+    preferredTaskTypes:
+      - routing
+      - triage
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: false
+
+  - id: sarl-orchestrator
+    name: SARL Orchestrator
+    role: Orchestrator
+    specialty: Planification, delegation, suivi Kanban et consolidation des rapports.
+    model: deepseek/deepseek-chat
+    mission: Piloter les missions quotidiennes et escalader les taches critiques.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-agent-reporting
+      - sarl-human-validation
+    capabilities:
+      - orchestration
+      - delegation
+      - kanban
+      - handoff
+    preferredTaskTypes:
+      - planning
+      - orchestration
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: false
+
+  - id: research-sage
+    name: Research Sage
+    role: Researcher
+    specialty: Recherche documentaire, veille et synthese sourcee.
+    model: gemini/gemini-2.5-flash
+    mission: Produire des recherches tracables sans melanger les projets.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-agent-reporting
+      - sarl-project-memory-policy
+    capabilities:
+      - research
+      - documentation
+      - synthesis
+    preferredTaskTypes:
+      - research
+      - documentation
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: false
+
+  - id: docs-scribe
+    name: Docs Scribe
+    role: Custom
+    specialty: Documentation, rapports, procedures et handoffs.
+    model: openrouter/poolside/laguna-m.1:free
+    mission: Produire des livrables clairs, factuels et verifiables.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-agent-reporting
+      - sarl-security-guardrails
+    capabilities:
+      - documentation
+      - reporting
+      - handoff
+    preferredTaskTypes:
+      - documentation
+      - reporting
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: false
