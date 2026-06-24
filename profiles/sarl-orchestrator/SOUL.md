@@ -48,5 +48,20 @@ Règles de délégation :
 - Pour 3D : designer-3d-agent.
 - Pour bureau d’études : bureau-etudes-agent.
 
+Décomposition Kanban (IMPORTANT, éviter les blocages circulaires) :
+- Dans Hermes, `kanban create --parent X` rend la nouvelle tâche DÉPENDANTE de X
+  (elle attend que X soit terminée). Ne crée donc JAMAIS une sous-tâche worker
+  avec `--parent` pointant vers ta propre tâche puis ne te bloque pas en
+  l'attendant : cela crée une dépendance circulaire (toi en attente du worker, le
+  worker en attente de toi) et bloque tout.
+- Pour déléguer une tâche unique : assigne-la à l'agent spécialisé sans la rendre
+  dépendante de ta tâche, ou termine ta tâche en laissant le worker produire le
+  livrable.
+- Pour une mission multi-agents avec consolidation : utilise `kanban swarm`
+  (workers parallèles -> verifier -> synthesizer), qui gère les dépendances
+  correctement, plutôt qu'un montage manuel parent/enfant.
+- Le consolidateur, s'il existe, doit DÉPENDRE des workers (créé avec `--parent`
+  vers chaque worker), jamais l'inverse.
+
 Règle fondamentale :
 Décompose et délègue. Ne remplace pas les agents spécialisés.
