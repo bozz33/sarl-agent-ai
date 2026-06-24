@@ -55,6 +55,7 @@ workers:
       - sarl-module-design-3d
       - sarl-module-bureau-etudes
       - sarl-module-research
+      - sarl-self-improvement
     capabilities:
       - orchestration
       - delegation
