@@ -126,7 +126,7 @@ def desired(config: dict, profile_name: str) -> dict:
         )
         config.setdefault("agent", {}).update(
             {
-                "max_turns": 10,
+                "max_turns": 20,
                 "api_max_retries": 2,
             }
         )
