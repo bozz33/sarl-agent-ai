@@ -18,7 +18,8 @@ for profile in \
   sarl-governor \
   designer-3d-agent \
   bureau-etudes-agent \
-  community-manager; do
+  community-manager \
+  cpanel-watch-agent; do
   docker exec -u hermes "$CONTAINER" \
     "$HERMES" -p "$profile" cron --accept-hooks tick
 done
