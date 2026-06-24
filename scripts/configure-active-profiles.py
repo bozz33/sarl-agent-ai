@@ -93,14 +93,18 @@ def desired(config: dict, profile_name: str) -> dict:
     ]
 
     if profile_name == "sarl-orchestrator":
-        # Cerveau central: modele de raisonnement GPT/Claude, jamais economique.
+        # Cerveau central: modele de raisonnement par abonnement (Claude Sonnet
+        # via OAuth), jamais economique. Fallback GPT puis Gemini.
         config.setdefault("model", {}).update(
             {
-                "provider": "openai-api",
-                "default": "gpt-4.1",
+                "provider": "anthropic",
+                "default": "claude-sonnet-4.6",
             }
         )
-        fallbacks[:] = [{"provider": "gemini", "model": "gemini-2.5-flash"}]
+        fallbacks[:] = [
+            {"provider": "openai-api", "model": "gpt-4.1"},
+            {"provider": "gemini", "model": "gemini-2.5-flash"},
+        ]
 
     if profile_name in {"cpanel-watch-agent", "security-audit-agent"}:
         # Watchers lecture seule: modele economique deepseek, fallback gemini.

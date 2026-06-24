@@ -153,10 +153,14 @@ Review critique:          GPT ou Claude.
 Analyse exceptionnelle:   Opus uniquement avec validation humaine.
 ```
 
-Etat des fournisseurs (2026-06-24): cles API actives = OpenAI (GPT), DeepSeek,
-Gemini, Groq. L'orchestrateur tourne sur GPT via l'API OpenAI. Claude Sonnet pour
-l'orchestration necessite l'ajout d'une cle `ANTHROPIC_API_KEY` (absente
-actuellement); a activer quand l'abonnement Claude est branche.
+Etat des fournisseurs (2026-06-24): l'orchestrateur tourne sur **Claude Sonnet 4.6**
+(`anthropic` / `claude-sonnet-4.6`) via l'abonnement Claude Pro/Max connecte en
+OAuth dans le pool de credentials Hermes (`hermes auth`), fallback GPT (openai-api
+/ gpt-4.1) puis Gemini. Abonnement GPT/Codex aussi disponible (`openai-codex`
+OAuth). Cles API a l'usage: DeepSeek (taches serieuses), Gemini (taches simples),
+Groq. Note: le credential pool OAuth n'est consomme que par le gateway/agent; un
+appel `hermes -z` autonome ne le charge pas. Toute modification de modele de profil
+exige un `hermes gateway restart` pour etre prise en compte.
 
 Regles de cout et securite:
 
