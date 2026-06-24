@@ -90,6 +90,16 @@ def desired(config: dict, profile_name: str) -> dict:
         if item.get("provider") not in {"groq", "openrouter"}
     ]
 
+    if profile_name == "sarl-orchestrator":
+        # Cerveau central: modele de raisonnement GPT/Claude, jamais economique.
+        config.setdefault("model", {}).update(
+            {
+                "provider": "openai-api",
+                "default": "gpt-4.1",
+            }
+        )
+        fallbacks[:] = [{"provider": "gemini", "model": "gemini-2.5-flash"}]
+
     if profile_name == "sarl-stack-steward":
         config.setdefault("model", {}).update(
             {
