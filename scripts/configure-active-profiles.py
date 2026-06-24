@@ -165,6 +165,15 @@ def desired(config: dict, profile_name: str) -> dict:
         )
         fallbacks[:] = [{"provider": "gemini", "model": "gemini-2.5-flash"}]
 
+    # Resilience: si DeepSeek est epuise/indisponible (quota, panne API), basculer
+    # sur Claude -> GPT -> Gemini.
+    if config.get("model", {}).get("provider") == "deepseek":
+        fallbacks[:] = [
+            {"provider": "anthropic", "model": "claude-sonnet-4.6"},
+            {"provider": "openai-api", "model": "gpt-4.1"},
+            {"provider": "gemini", "model": "gemini-2.5-flash"},
+        ]
+
     # Toute decomposition/dispatch Kanban passe par l'orchestrateur central.
     config.setdefault("kanban", {})["orchestrator_profile"] = "sarl-orchestrator"
 

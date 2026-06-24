@@ -33,6 +33,8 @@ models:
     - Ne jamais appeler Opus automatiquement.
     - Ne jamais utiliser Codex comme orchestrateur.
     - Ne jamais utiliser un modèle d'abonnement pour un simple résumé si Gemini suffit.
+    - Si DeepSeek est épuisé/indisponible (quota, panne API), basculer en fallback
+      sur Claude -> GPT -> Gemini (applique a tous les profils a modele DeepSeek).
 
 # Mémoire projet (MCP project-memory).
 memory:
