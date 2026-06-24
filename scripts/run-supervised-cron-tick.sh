@@ -14,6 +14,7 @@ test "$(docker inspect "$CONTAINER" --format '{{.State.Health.Status}}')" = "hea
 "$ROOT/scripts/collect-platform-health.sh"
 
 for profile in \
+  sarl-orchestrator \
   sarl-stack-steward \
   sarl-governor \
   designer-3d-agent \

@@ -34,6 +34,8 @@ class MemoryRepository(Protocol):
     async def supersede(
         self, old_memory_id: str, replacement: MemoryWrite
     ) -> dict[str, Any]: ...
+    async def deprecate(self, memory_id: str) -> dict[str, Any] | None: ...
+    async def healthcheck(self) -> dict[str, Any]: ...
 
 
 class ProjectMemoryTools:
@@ -190,3 +192,24 @@ class ProjectMemoryTools:
                 embedding_status = "unavailable"
         result["embedding_status"] = embedding_status
         return result
+
+    async def memory_deprecate(
+        self, project_id: str, memory_id: str
+    ) -> dict[str, Any]:
+        project_id = await self._require_existing_project(project_id)
+        existing = await self.repository.get(memory_id)
+        if existing is None or existing.get("project_id") != project_id:
+            raise MemoryValidationError("memory not found in project")
+        result = await self.repository.deprecate(memory_id)
+        return {"deprecated": result is not None, "memory": result}
+
+    async def healthcheck(self) -> dict[str, Any]:
+        status = await self.repository.healthcheck()
+        status["allowed_projects"] = sorted(self.allowed_projects)
+        status["embeddings"] = (
+            "enabled"
+            if self.embeddings is not None
+            and getattr(self.embeddings, "enabled", False)
+            else "disabled"
+        )
+        return status

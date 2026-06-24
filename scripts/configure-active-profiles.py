@@ -23,6 +23,8 @@ PROFILES = (
     "code-reviewer-critical",
     "qa-agent",
     "ops-foundation",
+    "cpanel-watch-agent",
+    "security-audit-agent",
     "community-manager",
     "support-agent",
     "bureau-etudes-agent",
@@ -90,6 +92,30 @@ def desired(config: dict, profile_name: str) -> dict:
         if item.get("provider") not in {"groq", "openrouter"}
     ]
 
+    if profile_name == "sarl-orchestrator":
+        # Cerveau central: modele de raisonnement par abonnement (Claude Sonnet
+        # via OAuth), jamais economique. Fallback GPT puis Gemini.
+        config.setdefault("model", {}).update(
+            {
+                "provider": "anthropic",
+                "default": "claude-sonnet-4.6",
+            }
+        )
+        fallbacks[:] = [
+            {"provider": "openai-api", "model": "gpt-4.1"},
+            {"provider": "gemini", "model": "gemini-2.5-flash"},
+        ]
+
+    if profile_name in {"cpanel-watch-agent", "security-audit-agent"}:
+        # Watchers lecture seule: modele economique deepseek, fallback gemini.
+        config.setdefault("model", {}).update(
+            {
+                "provider": "deepseek",
+                "default": "deepseek-chat",
+            }
+        )
+        fallbacks[:] = [{"provider": "gemini", "model": "gemini-2.5-flash"}]
+
     if profile_name == "sarl-stack-steward":
         config.setdefault("model", {}).update(
             {
@@ -138,6 +164,9 @@ def desired(config: dict, profile_name: str) -> dict:
             }
         )
         fallbacks[:] = [{"provider": "gemini", "model": "gemini-2.5-flash"}]
+
+    # Toute decomposition/dispatch Kanban passe par l'orchestrateur central.
+    config.setdefault("kanban", {})["orchestrator_profile"] = "sarl-orchestrator"
 
     for auxiliary in config.get("auxiliary", {}).values():
         if isinstance(auxiliary, dict) and auxiliary.get("provider") in {

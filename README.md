@@ -32,12 +32,48 @@ Stack Hermes Agent + Hermes Workspace, multi-projets et multi-agents.
   timeouts reduits.
 - Claude/Codex natifs et Tailscale restent conditionnes par une
   authentification externe; aucun credential n'est invente.
+- OpenRouter est retire de la configuration Swarm active.
+- `sarl-orchestrator` devient le cerveau central unique sur GPT/Claude.
+- Codex est reserve au code avance via `codex-builder`.
+- Opus est reserve aux analyses exceptionnelles avec validation humaine.
+- Les domaines metier sont representes par des skills de module, pas par des orchestrateurs permanents.
+- Telegram reste une inbox intelligente: classification, Kanban, triage, dispatch controle.
 
 Documentation :
 
 - `docs/SARL-Agent-AI-document-complet-v1.3.md`
 - `docs/PHASE2-IMPLEMENTATION.md`
 - `ARCHITECTURE.md`
+
+## Architecture cible
+
+```text
+sarl-router
+  -> sarl-orchestrator central
+    -> skills de module
+      -> agents specialises
+        -> Kanban / Swarm / QA / Governor / memoire MCP
+```
+
+Principes :
+
+- Un seul cerveau central : `sarl-orchestrator`.
+- Les modules sont des skills : dev, community, support, ops/cPanel, 3D, bureau d'etudes, research.
+- Les agents specialises executent; l'orchestrateur decide et delegue.
+- Kanban garde la trace durable.
+- Swarm coordonne les missions complexes.
+- Governor controle risques, couts, validations et actions interdites.
+- Les actions critiques demandent validation humaine.
+
+## Politique modeles
+
+```text
+Gemini / DeepSeek -> triage, documentation, recherche simple, execution courante.
+GPT / Claude      -> orchestration centrale, arbitrage, review critique.
+Codex             -> code avance uniquement.
+Opus              -> audit exceptionnel uniquement avec validation.
+OpenRouter        -> retire de la configuration active.
+```
 
 ## Start
 

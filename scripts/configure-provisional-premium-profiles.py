@@ -34,7 +34,7 @@ def configure(target: str, template: str, docker_backend: bool) -> None:
     }
     config["fallback_providers"] = [
         {"provider": "gemini", "model": "gemini-2.5-flash"},
-        {"provider": "openrouter", "model": "auto"},
+        {"provider": "deepseek", "model": "deepseek-chat"},
     ]
     config.pop("provider", None)
     config.pop("base_url", None)

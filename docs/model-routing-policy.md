@@ -7,7 +7,7 @@ Utiliser le modele le moins couteux capable de reussir correctement.
 | Niveau | Usage | Cible |
 |---|---|---|
 | SIMPLE | Resume, extraction, titre | Groq ou Gemini Flash |
-| STANDARD | Documentation, recherche, support | Gemini, DeepSeek ou OpenRouter |
+| STANDARD | Documentation, recherche, support | Gemini ou DeepSeek |
 | AVANCEE | Code, debug, architecture | DeepSeek Reasoner, Codex si active |
 | CRITIQUE | Production, securite, DB, juridique | Claude/GPT/Codex + humain |
 
