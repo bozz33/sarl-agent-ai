@@ -12,7 +12,7 @@ ROOT = Path("/opt/data")
 FAST_MODEL = {"provider": "gemini", "default": "gemini-3.1-flash-lite"}
 FAST_FALLBACKS = [
     {"provider": "deepseek", "model": "deepseek-chat"},
-    {"provider": "openrouter", "model": "auto"},
+    {"provider": "gemini", "model": "gemini-2.5-flash"},
 ]
 
 FAST_PROFILES = {
@@ -52,8 +52,6 @@ def tune_agent(config: dict, fast: bool) -> None:
         agent["coding_context"] = "off"
         agent["max_turns"] = min(int(agent.get("max_turns", 60)), 30)
     config.setdefault("prompt_caching", {})["cache_ttl"] = "1h"
-    config.setdefault("openrouter", {})["response_cache"] = True
-    config["openrouter"]["response_cache_ttl"] = 3600
     config.setdefault("provider_routing", {})["sort"] = "throughput"
 
 

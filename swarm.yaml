@@ -2,21 +2,34 @@ version: 1
 workers:
   - id: sarl-router
     name: SARL Router
-    role: Custom
-    specialty: Triage economique, classification du risque et choix du profil cible.
-    model: openrouter/poolside/laguna-m.1:free
-    mission: Router les demandes sans executer les missions longues.
+    role: Router
+    specialty: Triage economique, classification intention/risque et filtrage des demandes simples.
+    model: gemini/gemini-2.5-flash
+    mission: Router les demandes sans executer les missions longues ni appeler de modele premium inutilement.
     skills:
       - sarl-agent-ai-operating-contract
       - sarl-routing-and-escalation
       - sarl-cost-control
+      - sarl-security-guardrails
     capabilities:
       - routing
       - triage
       - cost-control
+      - risk-classification
     preferredTaskTypes:
       - routing
       - triage
+      - telegram-inbox
+    greenlightRequiredFor:
+      - dispatch
+      - production
+      - secrets
+      - cpanel
+      - email
+      - dns
+      - ssl
+      - database
+      - deletion
     maxConcurrentTasks: 1
     acceptsBroadcast: true
     reviewRequired: false
@@ -24,21 +37,182 @@ workers:
   - id: sarl-orchestrator
     name: SARL Orchestrator
     role: Orchestrator
-    specialty: Planification, delegation, suivi Kanban et consolidation des rapports.
-    model: deepseek/deepseek-chat
-    mission: Piloter les missions quotidiennes et escalader les taches critiques.
+    specialty: Cerveau central unique pour decision, delegation, Kanban, Swarm, validation humaine et rapport final.
+    model: openai/gpt-4.1
+    mission: Comprendre les missions, choisir module/agents, classifier le risque, creer les taches Kanban, deleguer et superviser sans executer les actions critiques.
     skills:
       - sarl-agent-ai-operating-contract
       - sarl-agent-reporting
       - sarl-human-validation
+      - sarl-project-memory-policy
+      - sarl-security-guardrails
+      - sarl-routing-and-escalation
+      - sarl-cost-control
+      - sarl-module-dev
+      - sarl-module-community
+      - sarl-module-support
+      - sarl-module-ops-cpanel
+      - sarl-module-design-3d
+      - sarl-module-bureau-etudes
+      - sarl-module-research
     capabilities:
       - orchestration
       - delegation
       - kanban
       - handoff
+      - risk-classification
+      - human-validation
+      - memory-policy
     preferredTaskTypes:
       - planning
       - orchestration
+      - mission-control
+      - critical-triage
+    greenlightRequiredFor:
+      - production
+      - deploy
+      - merge-main
+      - secrets
+      - cpanel
+      - email
+      - dns
+      - ssl
+      - database
+      - deletion
+      - irreversible-action
+      - opus
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: true
+
+  - id: code-builder
+    name: Code Builder
+    role: Builder
+    specialty: Developpement courant, corrections ciblees, tests et petits refactors en worktree/sandbox.
+    model: deepseek/deepseek-chat
+    mission: Executer les taches de code low/medium risk avec tests et rapport, sans merge ni deploy non valides.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-dev
+      - sarl-security-guardrails
+      - sarl-agent-reporting
+    capabilities:
+      - code
+      - tests
+      - patch
+    preferredTaskTypes:
+      - bugfix
+      - feature
+      - tests
+    greenlightRequiredFor:
+      - merge-main
+      - deploy
+      - deletion
+      - database
+      - secrets
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: true
+
+  - id: codex-builder
+    name: Codex Builder
+    role: Advanced Code Builder
+    specialty: Code avance, refactor lourd, debug complexe et migrations logicielles sous supervision.
+    model: openai/codex
+    mission: Traiter les missions de code avance uniquement sur delegation du sarl-orchestrator avec review critique obligatoire.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-dev
+      - sarl-security-guardrails
+    capabilities:
+      - advanced-code
+      - refactor
+      - debugging
+      - test-generation
+    preferredTaskTypes:
+      - advanced-code
+      - complex-debug
+      - refactor
+    greenlightRequiredFor:
+      - any-write-outside-worktree
+      - merge-main
+      - deploy
+      - production
+      - database
+      - secrets
+    maxConcurrentTasks: 1
+    acceptsBroadcast: false
+    reviewRequired: true
+
+  - id: code-reviewer
+    name: Code Reviewer
+    role: Reviewer
+    specialty: Revue standard de code, tests, risques et regressions.
+    model: deepseek/deepseek-chat
+    mission: Verifier les patchs standards, demander corrections et produire rapport de review.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-dev
+      - sarl-security-guardrails
+      - sarl-agent-reporting
+    capabilities:
+      - review
+      - test-review
+      - risk-review
+    preferredTaskTypes:
+      - code-review
+      - qa
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: false
+
+  - id: code-reviewer-critical
+    name: Code Reviewer Critical
+    role: Critical Reviewer
+    specialty: Revue critique securite, architecture, production, migrations et actions sensibles.
+    model: openai/gpt-4.1
+    mission: Controler les changements critiques avant validation humaine et merge/deploiement.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-dev
+      - sarl-human-validation
+      - sarl-security-guardrails
+      - sarl-governance-audit
+    capabilities:
+      - critical-review
+      - security-review
+      - architecture-review
+    preferredTaskTypes:
+      - critical-review
+      - security
+      - architecture
+    greenlightRequiredFor:
+      - approval
+      - merge-main
+      - deploy
+      - production
+    maxConcurrentTasks: 1
+    acceptsBroadcast: false
+    reviewRequired: false
+
+  - id: qa-agent
+    name: QA Agent
+    role: QA
+    specialty: Validation fonctionnelle, tests, scenarios d'acceptation et rapports de qualite.
+    model: gemini/gemini-2.5-flash
+    mission: Verifier que les livrables respectent les criteres d'acceptation sans action critique.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-agent-reporting
+      - sarl-security-guardrails
+    capabilities:
+      - qa
+      - acceptance-tests
+      - verification
+    preferredTaskTypes:
+      - qa
+      - acceptance
+      - test-report
     maxConcurrentTasks: 1
     acceptsBroadcast: true
     reviewRequired: false
@@ -46,13 +220,14 @@ workers:
   - id: research-sage
     name: Research Sage
     role: Researcher
-    specialty: Recherche documentaire, veille et synthese sourcee.
+    specialty: Recherche documentaire, veille, benchmark et synthese sourcee.
     model: gemini/gemini-2.5-flash
-    mission: Produire des recherches tracables sans melanger les projets.
+    mission: Produire des recherches tracables sans melanger les projets et avec sources citees.
     skills:
       - sarl-agent-ai-operating-contract
       - sarl-agent-reporting
       - sarl-project-memory-policy
+      - sarl-module-research
     capabilities:
       - research
       - documentation
@@ -60,20 +235,22 @@ workers:
     preferredTaskTypes:
       - research
       - documentation
+      - benchmark
     maxConcurrentTasks: 1
     acceptsBroadcast: true
     reviewRequired: false
 
   - id: docs-scribe
     name: Docs Scribe
-    role: Custom
-    specialty: Documentation, rapports, procedures et handoffs.
-    model: openrouter/poolside/laguna-m.1:free
-    mission: Produire des livrables clairs, factuels et verifiables.
+    role: Documentation
+    specialty: Documentation, rapports, procedures, runbooks et handoffs.
+    model: gemini/gemini-2.5-flash
+    mission: Produire des livrables clairs, factuels, verifiables et sans secret.
     skills:
       - sarl-agent-ai-operating-contract
       - sarl-agent-reporting
       - sarl-security-guardrails
+      - sarl-project-memory-policy
     capabilities:
       - documentation
       - reporting
@@ -81,6 +258,264 @@ workers:
     preferredTaskTypes:
       - documentation
       - reporting
+      - runbook
     maxConcurrentTasks: 1
     acceptsBroadcast: true
     reviewRequired: false
+
+  - id: ops-foundation
+    name: Ops Foundation
+    role: Ops
+    specialty: Diagnostic VPS, services, logs autorises, Docker et infrastructure sans modification critique automatique.
+    model: deepseek/deepseek-chat
+    mission: Diagnostiquer et proposer actions ops avec validation humaine pour toute modification sensible.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-ops-cpanel
+      - sarl-security-guardrails
+      - sarl-human-validation
+    capabilities:
+      - ops-diagnostics
+      - healthcheck
+      - logs
+    preferredTaskTypes:
+      - ops
+      - diagnostics
+      - incident
+    greenlightRequiredFor:
+      - restart-service
+      - production
+      - secrets
+      - database
+      - deletion
+      - deploy
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: true
+
+  - id: cpanel-watch-agent
+    name: cPanel Watch Agent
+    role: cPanel Watcher
+    specialty: Surveillance cPanel, sites, public_html, SSL, emails professionnels et fichiers suspects en lecture seule.
+    model: deepseek/deepseek-chat
+    mission: Produire diagnostics cPanel/VPS sans modifier sites, emails, DNS, SSL ni fichiers sans validation humaine.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-ops-cpanel
+      - sarl-security-guardrails
+      - sarl-human-validation
+    capabilities:
+      - cpanel-diagnostics
+      - site-audit
+      - email-audit
+      - ssl-audit
+    preferredTaskTypes:
+      - cpanel
+      - ops-watch
+      - security-watch
+    greenlightRequiredFor:
+      - cpanel-write
+      - email
+      - dns
+      - ssl
+      - public-html
+      - deletion
+      - malware-cleanup
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: true
+
+  - id: security-audit-agent
+    name: Security Audit Agent
+    role: Security Auditor
+    specialty: Audit securite, secrets, surface d'exposition, hooks et conformite des actions critiques.
+    model: deepseek/deepseek-chat
+    mission: Auditer et alerter sans appliquer de correction sensible sans validation.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-security-guardrails
+      - sarl-governance-audit
+      - sarl-human-validation
+    capabilities:
+      - security-audit
+      - policy-check
+      - risk-review
+    preferredTaskTypes:
+      - security
+      - audit
+      - governance
+    greenlightRequiredFor:
+      - secrets
+      - production
+      - deletion
+      - deploy
+    maxConcurrentTasks: 1
+    acceptsBroadcast: false
+    reviewRequired: false
+
+  - id: community-manager
+    name: Community Manager
+    role: Community
+    specialty: Contenu, calendrier editorial, moderation, veille sociale et campagnes brouillon.
+    model: gemini/gemini-2.5-flash
+    mission: Preparer contenus et rapports community sans publier ni repondre officiellement sans validation humaine.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-community
+      - community-content-operations
+      - sarl-human-validation
+    capabilities:
+      - content
+      - community
+      - social-listening
+    preferredTaskTypes:
+      - community
+      - content
+      - campaign
+    greenlightRequiredFor:
+      - publish
+      - client-announcement
+      - crisis-message
+      - legal
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: true
+
+  - id: support-agent
+    name: Support Agent
+    role: Support
+    specialty: Triage support, reponses brouillon, incidents clients et escalades.
+    model: gemini/gemini-2.5-flash
+    mission: Preparer reponses support et diagnostics sans engagement contractuel ni modification compte/client sans validation.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-support
+      - sarl-human-validation
+      - sarl-security-guardrails
+    capabilities:
+      - support
+      - triage
+      - customer-response
+    preferredTaskTypes:
+      - support
+      - incident-triage
+      - customer-draft
+    greenlightRequiredFor:
+      - refund
+      - contract
+      - account-change
+      - personal-data
+      - customer-commitment
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: true
+
+  - id: designer-3d-agent
+    name: Designer 3D Agent
+    role: 3D Designer
+    specialty: Workflows Blender/FreeCAD, assets, rendus, exports et scripts 3D supervises.
+    model: gemini/gemini-2.5-flash
+    mission: Produire plans, diagnostics et scripts 3D sans livraison client ni suppression d'assets sans validation.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-design-3d
+      - design-3d-production
+      - sarl-human-validation
+    capabilities:
+      - design-3d
+      - blender
+      - asset-pipeline
+    preferredTaskTypes:
+      - design-3d
+      - blender
+      - visual-production
+    greenlightRequiredFor:
+      - client-delivery
+      - asset-deletion
+      - production-pipeline
+      - expensive-render
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: true
+
+  - id: bureau-etudes-agent
+    name: Bureau Etudes Agent
+    role: Engineering Design Office
+    specialty: Etudes techniques, notes, calculs preparatoires, dossiers et syntheses avec validation professionnelle.
+    model: deepseek/deepseek-chat
+    mission: Preparer analyses et livrables bureau d'etudes sans engager responsabilite finale sans validation humaine.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-bureau-etudes
+      - engineering-design-office
+      - sarl-human-validation
+    capabilities:
+      - engineering-analysis
+      - technical-note
+      - study-report
+    preferredTaskTypes:
+      - bureau-etudes
+      - technical-study
+      - calculation-review
+    greenlightRequiredFor:
+      - client-final-delivery
+      - regulatory-document
+      - critical-calculation
+      - structural-decision
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: true
+
+  - id: sarl-governor
+    name: SARL Governor
+    role: Governor
+    specialty: Controle risque, validation humaine, cout modele, actions interdites et conformite architecture.
+    model: deepseek/deepseek-chat
+    mission: Verifier les decisions de l'orchestrateur sans decider a sa place et bloquer les actions non conformes.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-governance-audit
+      - sarl-human-validation
+      - sarl-cost-control
+      - sarl-security-guardrails
+    capabilities:
+      - governance
+      - risk-control
+      - policy-audit
+    preferredTaskTypes:
+      - governance
+      - risk-review
+      - compliance
+    maxConcurrentTasks: 1
+    acceptsBroadcast: false
+    reviewRequired: false
+
+  - id: sarl-stack-steward
+    name: SARL Stack Steward
+    role: Stack Steward
+    specialty: Veille stack, dette technique, migrations supervisees, sandbox et propositions d'amelioration.
+    model: deepseek/deepseek-chat
+    mission: Proposer evolutions stack testees en sandbox sans modifier compose actif, secrets ni production sans validation.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-stack-stewardship
+      - sarl-security-guardrails
+      - sarl-human-validation
+    capabilities:
+      - stack-audit
+      - upgrade-planning
+      - sandbox-validation
+    preferredTaskTypes:
+      - stack-stewardship
+      - upgrade-plan
+      - technical-debt
+    greenlightRequiredFor:
+      - docker-compose
+      - system-package
+      - production
+      - restart-service
+      - database
+      - secrets
+    maxConcurrentTasks: 1
+    acceptsBroadcast: false
+    reviewRequired: true

@@ -76,38 +76,82 @@ Le mode recommande est:
 
 ```text
 Workspace
-  └── Orchestrator Hermes
-      ├── Builder agent
-      ├── Reviewer agent
-      ├── Researcher agent
-      ├── Ops agent
-      └── QA agent
+  └── sarl-orchestrator
+      ├── code-builder / codex-builder
+      ├── code-reviewer / code-reviewer-critical
+      ├── research-sage / docs-scribe
+      ├── ops-foundation / cpanel-watch-agent
+      ├── community-manager / support-agent
+      ├── designer-3d-agent / bureau-etudes-agent
+      └── qa-agent / sarl-governor
 ```
 
 Profile = identite permanente. Swarm = coordination live. Kanban = travail
 durable. Aucun worker ne demarre automatiquement.
 
+## Central Orchestrator Pattern
+
+Le systeme utilise un orchestrateur central unique: `sarl-orchestrator`.
+
+Les domaines ne disposent pas d'orchestrateurs permanents. Les domaines sont representes par des skills de module et des agents specialises.
+
+```text
+Entrees
+  -> sarl-router
+    -> sarl-orchestrator
+      -> skills de module
+        -> agents specialises
+          -> Kanban / Swarm / QA / Governor / memoire MCP
+```
+
+Regles structurantes:
+
+- `sarl-orchestrator` decide, decompose, delegue, suit et consolide.
+- Les agents specialises executent dans leur domaine.
+- `sarl-governor` verifie risques, couts, validations et actions interdites.
+- Kanban conserve la trace durable.
+- Swarm coordonne les missions complexes.
+- MCP memoire conserve uniquement les apprentissages durables valides.
+- Telegram est une inbox intelligente, pas un moteur d'execution directe.
+
 ## Multi-modeles
 
 Oui, plusieurs modeles/fournisseurs peuvent etre utilises.
 
-Hermes Agent annonce officiellement le support de plusieurs fournisseurs: Nous Portal, OpenRouter, NovitaAI, NVIDIA NIM, Hugging Face, OpenAI et endpoints OpenAI-compatible.
+OpenRouter est retire de la configuration active SARL-Agent-AI. Les fournisseurs/modeles actifs cibles sont Claude, GPT, Codex, Opus, DeepSeek et Gemini.
 
 Recommandation:
 
 ```text
-Modele principal orchestrateur:
-  Nous Portal ou OpenRouter, modele robuste et rapide.
+Pre-triage:
+  Gemini Flash ou DeepSeek.
 
-Modele code/build:
-  GPT / OpenAI-compatible / modele fort en code.
+Orchestrateur central:
+  GPT ou Claude.
 
-Modele recherche:
-  modele rapide avec outils web si active.
+Execution courante:
+  Gemini ou DeepSeek.
 
-Modele critique/review:
-  modele plus fort, utilise moins souvent.
+Documentation et recherche simple:
+  Gemini.
+
+Code avance:
+  Codex uniquement via codex-builder.
+
+Review critique:
+  GPT ou Claude.
+
+Analyse exceptionnelle:
+  Opus uniquement avec validation humaine.
 ```
+
+Regles de cout et securite:
+
+- Ne jamais appeler Opus automatiquement.
+- Ne jamais utiliser Codex comme orchestrateur general.
+- Ne jamais utiliser GPT/Claude pour un simple resume si Gemini/DeepSeek suffit.
+- Utiliser Codex seulement pour code avance.
+- Utiliser Opus seulement apres validation ou justification exceptionnelle.
 
 Les changements de modele doivent etre faits via Hermes/Workspace quand possible, pas en bricolant directement les conteneurs.
 
@@ -132,7 +176,9 @@ Puis etre montes dans Docker ou injectes via `.env`, selon la documentation offi
 ## Ce qui est volontairement exclu au demarrage
 
 - Pas d'Ollama dans la premiere version.
-- Claude et Codex reserves a une phase d'activation dediee.
+- Pas de Codex comme orchestrateur.
+- Pas d'Opus en usage automatique quotidien.
+- Pas d'OpenRouter dans la configuration active.
 - Pas de Coolify.
 - Pas de Open WebUI.
 - Pas de services non necessaires au panel Workspace.
