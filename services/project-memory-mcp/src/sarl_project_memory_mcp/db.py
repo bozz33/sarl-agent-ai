@@ -352,3 +352,30 @@ class ProjectMemoryDatabase:
                     (old_memory_id,),
                 )
                 return {"old_memory_id": old_memory_id, "new_memory": new}
+
+    async def deprecate(self, memory_id: str) -> dict[str, Any] | None:
+        async with self._require_pool().connection() as conn:
+            cur = await conn.execute(
+                """
+                UPDATE project_memory
+                SET truth_status = 'deprecated',
+                    updated_at = now()
+                WHERE id = %s
+                RETURNING *
+                """,
+                (memory_id,),
+            )
+            return await cur.fetchone()
+
+    async def healthcheck(self) -> dict[str, Any]:
+        async with self._require_pool().connection() as conn:
+            ping = await conn.execute("SELECT 1 AS ok")
+            ok = await ping.fetchone()
+            counts = await conn.execute(
+                "SELECT count(*) AS total FROM project_memory"
+            )
+            total = await counts.fetchone()
+        return {
+            "database": "ok" if ok else "error",
+            "memory_rows": (total or {}).get("total"),
+        }

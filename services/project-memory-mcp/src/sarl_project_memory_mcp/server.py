@@ -190,6 +190,24 @@ async def project_memory_get(
     return await _tools(ctx).memory_get(project_id, memory_id)
 
 
+@mcp.tool()
+async def project_memory_deprecate(
+    project_id: str,
+    memory_id: str,
+    ctx: Context[ServerSession, AppContext],
+) -> dict[str, Any]:
+    """Mark one memory deprecated (no replacement) inside its project."""
+    return await _tools(ctx).memory_deprecate(project_id, memory_id)
+
+
+@mcp.tool()
+async def project_memory_healthcheck(
+    ctx: Context[ServerSession, AppContext],
+) -> dict[str, Any]:
+    """Return memory service health: database, row count, embeddings status."""
+    return await _tools(ctx).healthcheck()
+
+
 def main() -> None:
     transport = os.environ.get("SARL_MEMORY_MCP_TRANSPORT", "stdio")
     if transport not in {"stdio", "sse", "streamable-http"}:

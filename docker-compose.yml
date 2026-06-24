@@ -67,7 +67,7 @@ services:
       - "127.0.0.1:3000:3000"
 
   project-memory-mcp:
-    image: sarl/project-memory-mcp:0.2.0
+    image: sarl/project-memory-mcp:0.2.1
     container_name: sarl-project-memory-mcp
     restart: unless-stopped
     env_file:
