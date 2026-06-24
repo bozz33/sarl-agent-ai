@@ -14,12 +14,12 @@ test "$(docker inspect "$CONTAINER" --format '{{.State.Health.Status}}')" = "hea
 "$ROOT/scripts/collect-platform-health.sh"
 
 for profile in \
+  sarl-orchestrator \
   sarl-stack-steward \
   sarl-governor \
   designer-3d-agent \
   bureau-etudes-agent \
-  community-manager \
-  cpanel-watch-agent; do
+  community-manager; do
   docker exec -u hermes "$CONTAINER" \
     "$HERMES" -p "$profile" cron --accept-hooks tick
 done

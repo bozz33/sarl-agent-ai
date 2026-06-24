@@ -113,6 +113,11 @@ Regles structurantes:
 - Swarm coordonne les missions complexes.
 - MCP memoire conserve uniquement les apprentissages durables valides.
 - Telegram est une inbox intelligente, pas un moteur d'execution directe.
+- Toute mission entre par `sarl-orchestrator`, jamais directement par un agent
+  specialise. Cela vaut aussi pour les missions recurrentes: les crons portent
+  leur job sur le profil `sarl-orchestrator` (un script deterministe collecte les
+  faits, l'orchestrateur analyse, classe le risque, delegue au specialiste et
+  demande validation humaine si necessaire).
 
 ## Multi-modeles
 
@@ -120,30 +125,38 @@ Oui, plusieurs modeles/fournisseurs peuvent etre utilises.
 
 OpenRouter est retire de la configuration active SARL-Agent-AI. Les fournisseurs/modeles actifs cibles sont Claude, GPT, Codex, Opus, DeepSeek et Gemini.
 
-Recommandation:
+Politique de fourniture (par type d'acces):
 
 ```text
-Pre-triage:
-  Gemini Flash ou DeepSeek.
+Abonnements (orchestration uniquement):
+  GPT (modeles peu couteux) ou Claude Sonnet.
+  -> Reserves au raisonnement, arbitrage et decision de l'orchestrateur.
 
-Orchestrateur central:
-  GPT ou Claude.
+API DeepSeek (facturee a l'usage):
+  Taches serieuses: code, refactor, diagnostic ops, audit, bureau d'etudes.
 
-Execution courante:
-  Gemini ou DeepSeek.
-
-Documentation et recherche simple:
-  Gemini.
-
-Code avance:
-  Codex uniquement via codex-builder.
-
-Review critique:
-  GPT ou Claude.
-
-Analyse exceptionnelle:
-  Opus uniquement avec validation humaine.
+API Gemini (facturee a l'usage):
+  Taches simples: pre-triage, resume, documentation, recherche legere, QA,
+  community, support, 3D courant.
 ```
+
+Mapping recommande:
+
+```text
+Pre-triage:               Gemini Flash.
+Orchestrateur central:    GPT peu couteux ou Claude Sonnet (abonnement).
+Execution courante:       Gemini ou DeepSeek selon serieux.
+Documentation/recherche:  Gemini.
+Code courant/ops/audit:   DeepSeek.
+Code avance:              Codex uniquement via codex-builder.
+Review critique:          GPT ou Claude.
+Analyse exceptionnelle:   Opus uniquement avec validation humaine.
+```
+
+Etat des fournisseurs (2026-06-24): cles API actives = OpenAI (GPT), DeepSeek,
+Gemini, Groq. L'orchestrateur tourne sur GPT via l'API OpenAI. Claude Sonnet pour
+l'orchestration necessite l'ajout d'une cle `ANTHROPIC_API_KEY` (absente
+actuellement); a activer quand l'abonnement Claude est branche.
 
 Regles de cout et securite:
 

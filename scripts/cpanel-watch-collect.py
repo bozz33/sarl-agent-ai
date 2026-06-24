@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Collecte deterministe lecture seule de l'etat cPanel LWS via SSH.
 
-Concu pour le cron `daily-ops-cpanel-watch` du profil cpanel-watch-agent.
+Concu pour le cron `daily-ops-cpanel-watch` porte par le profil sarl-orchestrator
+(toute mission entre par l'orchestrateur central, qui analyse les faits, classe le
+risque et delegue a cpanel-watch-agent si une action est requise).
 Le script SSH n'execute que des commandes en lecture; il n'ecrit jamais sur le
 serveur distant. Il produit un rapport date dans
-`<profil>/knowledge/cpanel-reports/<stamp>.md` que l'agent resume ensuite.
+`<profil>/knowledge/cpanel-reports/<stamp>.md` que l'orchestrateur resume ensuite.
 
 Robuste par conception: toute exception est capturee, un verdict
 SUPERVISION_REQUISE est imprime et le code de sortie reste 0 pour ne pas casser
