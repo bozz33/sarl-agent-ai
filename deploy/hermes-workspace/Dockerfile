@@ -9,7 +9,7 @@
 # (volontairement HORS docker-compose pour ne pas ecraser l'image en prod par un
 #  `docker compose up --build`.)
 
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 
 ARG HERMES_WORKSPACE_REPO=https://github.com/outsourc-e/hermes-workspace.git
 ARG HERMES_WORKSPACE_REF=d04e1f3
@@ -34,7 +34,7 @@ RUN if ls /tmp/sarl-patches/*.patch >/dev/null 2>&1; then \
 RUN pnpm install --frozen-lockfile \
     && pnpm build
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app ./
