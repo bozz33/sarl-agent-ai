@@ -520,3 +520,34 @@ workers:
     maxConcurrentTasks: 1
     acceptsBroadcast: false
     reviewRequired: true
+
+  - id: sarl-personal-assistant
+    name: Personal Assistant
+    role: Personal Assistant
+    specialty: Triage email/agenda, veille reseaux sociaux, brouillons et classification entreprise/projet.
+    model: gemini/gemini-2.5-flash
+    mission: Lire, resumer, classer et preparer des brouillons sans aucun envoi ni publication sans validation humaine.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-source-classification
+      - sarl-human-validation
+      - sarl-security-guardrails
+    capabilities:
+      - inbox-triage
+      - calendar
+      - social-monitoring
+      - drafting
+    preferredTaskTypes:
+      - email-triage
+      - calendar-digest
+      - social-inbox
+      - personal-draft
+    greenlightRequiredFor:
+      - send-email
+      - publish
+      - calendar-write
+      - account-change
+      - personal-data
+    maxConcurrentTasks: 1
+    acceptsBroadcast: false
+    reviewRequired: true

@@ -29,6 +29,7 @@ PROFILES = (
     "support-agent",
     "bureau-etudes-agent",
     "designer-3d-agent",
+    "sarl-personal-assistant",
 )
 
 HOOK = {
@@ -84,14 +85,18 @@ CODE_AGENTS = {
     "qa-agent",
 }
 
-# Toolsets sans valeur pour le code, desactives pour reduire la surface et le cout.
-CODE_DISABLED_TOOLSETS = [
+# Toolsets sans valeur fonctionnelle ici, desactives pour reduire surface et cout.
+# Aucun controle d'ordinateur (computer_use) pour les agents SARL.
+DISABLED_TOOLSETS = [
     "computer_use",
     "image_gen",
     "tts",
     "homeassistant",
     "spotify",
 ]
+
+# Profils a surface d'outils reduite (agents code + assistant personnel).
+TOOLSET_RESTRICTED = CODE_AGENTS | {"sarl-personal-assistant"}
 
 
 def desired(config: dict, profile_name: str) -> dict:
@@ -242,10 +247,17 @@ def desired(config: dict, profile_name: str) -> dict:
             {"provider": "anthropic", "model": "claude-sonnet-4.6"},
         ]
 
-    if profile_name in CODE_AGENTS:
-        config.setdefault("agent", {})["disabled_toolsets"] = list(
-            CODE_DISABLED_TOOLSETS
+    # Assistant personnel: modele economique en lecture/synthese, fallback deepseek.
+    # Role lecture seule + brouillons; tout envoi reste soumis a validation humaine.
+    if profile_name == "sarl-personal-assistant":
+        config.setdefault("model", {}).update(
+            {"provider": "gemini", "default": "gemini-2.5-flash", "max_tokens": 8192}
         )
+        config.setdefault("agent", {}).update({"max_turns": 16, "api_max_retries": 2})
+        fallbacks[:] = [{"provider": "deepseek", "model": "deepseek-chat"}]
+
+    if profile_name in TOOLSET_RESTRICTED:
+        config.setdefault("agent", {})["disabled_toolsets"] = list(DISABLED_TOOLSETS)
 
     # Resilience: si DeepSeek est epuise/indisponible (quota, panne API), basculer
     # sur Claude -> GPT -> Gemini. Les agents code ont deja une chaine dediee.
