@@ -30,6 +30,7 @@ services:
       - ./reports:/opt/sarl-reports:ro
       - ./scripts/sync-telegram-work.py:/opt/sarl-maintenance/sync-telegram-work.py:ro
       - ./scripts/apply-knowledge-validation.py:/opt/sarl-maintenance/apply-knowledge-validation.py:ro
+      - ./scripts/personal-assistant-digest.py:/opt/sarl-maintenance/personal-assistant-digest.py:ro
       - ./.secrets/ssh:/opt/hermes-ssh:ro
     networks:
       - default
