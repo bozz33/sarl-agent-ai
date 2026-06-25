@@ -36,9 +36,13 @@ sudo ./scripts/backup-hermes.sh --consistent --with-images
 docker load -i backups/<horodatage>/images/hermes-workspace-image.tar
 ```
 
-**À faire (source-repro)** : pour rendre l'image reconstructible depuis le source,
-versionner le diff vs upstream `d04e1f3` sous `deploy/hermes-workspace/` + un
-Dockerfile. Tant que ce n'est pas fait, la sauvegarde d'image est l'unique secours.
+**Source-repro (partiel)** : `deploy/hermes-workspace/` fournit un `Dockerfile`
+qui reconstruit une base **vanille** depuis l'upstream au commit épinglé `d04e1f3`
+(`docker build -t sarl/hermes-workspace:rebuild deploy/hermes-workspace`). Les
+patches SARL (`no-global-sse`, suivi borné) restent à récupérer et à déposer dans
+`deploy/hermes-workspace/patches/*.patch` pour reproduire l'image exacte. Détails :
+`deploy/hermes-workspace/README.md`. Build volontairement hors compose (évite
+d'écraser l'image patchée en prod via `up --build`).
 
 ## Sandbox
 
