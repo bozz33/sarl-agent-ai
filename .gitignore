@@ -29,3 +29,6 @@ PR-BODY.md
 # Drifting runtime snapshots
 reports/platform-health/latest.txt
 runtime-observability/latest.txt
+
+# Platform status snapshots (runtime)
+reports/platform-status/

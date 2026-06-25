@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily SARL platform status digest to Telegram
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+AccuracySec=1min
+Persistent=true
+Unit=sarl-platform-status.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect SARL platform status (crons per profile + shared Kanban) and push Telegram digest
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /root/CascadeProjects/SARL-agent-ai/scripts/platform-status-collect.py --send
+User=root
+Group=root
+Nice=10
