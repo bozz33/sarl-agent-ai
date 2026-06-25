@@ -119,7 +119,7 @@ workers:
     name: Codex Builder
     role: Advanced Code Builder
     specialty: Code avance, refactor lourd, debug complexe et migrations logicielles sous supervision.
-    model: openai/codex
+    model: openai-codex/gpt-5.1-codex-mini
     mission: Traiter les missions de code avance uniquement sur delegation du sarl-orchestrator avec review critique obligatoire.
     skills:
       - sarl-agent-ai-operating-contract
@@ -149,7 +149,7 @@ workers:
     name: Code Reviewer
     role: Reviewer
     specialty: Revue standard de code, tests, risques et regressions.
-    model: deepseek/deepseek-chat
+    model: deepseek/deepseek-reasoner
     mission: Verifier les patchs standards, demander corrections et produire rapport de review.
     skills:
       - sarl-agent-ai-operating-contract
@@ -171,7 +171,7 @@ workers:
     name: Code Reviewer Critical
     role: Critical Reviewer
     specialty: Revue critique securite, architecture, production, migrations et actions sensibles.
-    model: deepseek/deepseek-reasoner
+    model: anthropic/claude-sonnet-4.6
     mission: Controler les changements critiques avant validation humaine et merge/deploiement.
     skills:
       - sarl-agent-ai-operating-contract

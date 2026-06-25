@@ -74,6 +74,25 @@ OPENAI_PROVIDER = {
     "discover_models": True,
 }
 
+# Agents code connectes aux 4 fournisseurs actifs (Claude OAuth, GPT/Codex,
+# DeepSeek, Gemini). OpenRouter et Groq sont retires de la strategie active.
+CODE_AGENTS = {
+    "code-builder",
+    "codex-builder",
+    "code-reviewer",
+    "code-reviewer-critical",
+    "qa-agent",
+}
+
+# Toolsets sans valeur pour le code, desactives pour reduire la surface et le cout.
+CODE_DISABLED_TOOLSETS = [
+    "computer_use",
+    "image_gen",
+    "tts",
+    "homeassistant",
+    "spotify",
+]
+
 
 def desired(config: dict, profile_name: str) -> dict:
     config.pop("provider", None)
@@ -86,7 +105,8 @@ def desired(config: dict, profile_name: str) -> dict:
     config.setdefault("skills", {})["write_approval"] = True
     config["hooks"] = {"pre_tool_call": [HOOK.copy()]}
     config.setdefault("mcp_servers", {})["sarl_project_memory"] = MCP.copy()
-    config.setdefault("providers", {})["groq"] = GROQ_PROVIDER.copy()
+    # Groq retire de la strategie active: ne plus l'injecter et le purger s'il reste.
+    config.get("providers", {}).pop("groq", None)
     config.setdefault("providers", {})["openai-api"] = OPENAI_PROVIDER.copy()
     config.setdefault("web", {})["search_backend"] = "ddgs"
 
@@ -170,9 +190,69 @@ def desired(config: dict, profile_name: str) -> dict:
         )
         fallbacks[:] = [{"provider": "gemini", "model": "gemini-2.5-flash"}]
 
+    # Agents code: modele primaire par role + chaine de graduation 4 fournisseurs.
+    # La graduation effective (escalade d'une sous-tache difficile vers un palier
+    # superieur) passe par delegate_task et le routage orchestrateur.
+    if profile_name == "code-builder":
+        config.setdefault("model", {}).update(
+            {"provider": "deepseek", "default": "deepseek-chat"}
+        )
+        fallbacks[:] = [
+            {"provider": "deepseek", "model": "deepseek-reasoner"},
+            {"provider": "anthropic", "model": "claude-sonnet-4.6"},
+            {"provider": "openai-api", "model": "gpt-4.1"},
+            {"provider": "gemini", "model": "gemini-2.5-flash"},
+        ]
+
+    if profile_name == "codex-builder":
+        config.setdefault("model", {}).update(
+            {"provider": "openai-codex", "default": "gpt-5.1-codex-mini"}
+        )
+        fallbacks[:] = [
+            {"provider": "openai-api", "model": "gpt-4.1"},
+            {"provider": "anthropic", "model": "claude-sonnet-4.6"},
+            {"provider": "deepseek", "model": "deepseek-reasoner"},
+        ]
+
+    if profile_name == "code-reviewer":
+        config.setdefault("model", {}).update(
+            {"provider": "deepseek", "default": "deepseek-reasoner"}
+        )
+        fallbacks[:] = [
+            {"provider": "anthropic", "model": "claude-sonnet-4.6"},
+            {"provider": "openai-api", "model": "gpt-4.1"},
+            {"provider": "deepseek", "model": "deepseek-chat"},
+        ]
+
+    if profile_name == "code-reviewer-critical":
+        config.setdefault("model", {}).update(
+            {"provider": "anthropic", "default": "claude-sonnet-4.6"}
+        )
+        fallbacks[:] = [
+            {"provider": "openai-api", "model": "gpt-4.1"},
+            {"provider": "deepseek", "model": "deepseek-reasoner"},
+        ]
+
+    if profile_name == "qa-agent":
+        config.setdefault("model", {}).update(
+            {"provider": "gemini", "default": "gemini-2.5-flash"}
+        )
+        fallbacks[:] = [
+            {"provider": "deepseek", "model": "deepseek-chat"},
+            {"provider": "anthropic", "model": "claude-sonnet-4.6"},
+        ]
+
+    if profile_name in CODE_AGENTS:
+        config.setdefault("agent", {})["disabled_toolsets"] = list(
+            CODE_DISABLED_TOOLSETS
+        )
+
     # Resilience: si DeepSeek est epuise/indisponible (quota, panne API), basculer
-    # sur Claude -> GPT -> Gemini.
-    if config.get("model", {}).get("provider") == "deepseek":
+    # sur Claude -> GPT -> Gemini. Les agents code ont deja une chaine dediee.
+    if (
+        config.get("model", {}).get("provider") == "deepseek"
+        and profile_name not in CODE_AGENTS
+    ):
         fallbacks[:] = [
             {"provider": "anthropic", "model": "claude-sonnet-4.6"},
             {"provider": "openai-api", "model": "gpt-4.1"},

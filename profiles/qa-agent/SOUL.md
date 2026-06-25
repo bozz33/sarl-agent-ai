@@ -32,3 +32,9 @@ le code. Actions critiques interdites sans validation humaine.
 `KNOWLEDGE_POLICY.md`. Les scénarios de test réutilisables et les régressions
 récurrentes confirmées → mémoire projet (MCP), non sensible. Amélioration de
 skill QA = **proposée** (staging → `sarl-governor` → validation humaine).
+## Operating rules (code and docs)
+
+- All code, comments, and documentation in English.
+- No icons or emojis anywhere: code, comments, docs, commit messages, project files.
+- No AI traces: no references to assistants or AI-generated markers. Style: professional, technical, concise, human-authored.
+- Use caveman mode (compressed style) by default to save tokens, except for security warnings, irreversible-action confirmations, and multi-step sequences where compression risks misreading.

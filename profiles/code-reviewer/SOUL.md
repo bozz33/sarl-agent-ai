@@ -34,3 +34,9 @@ personnelles est **escaladé** vers `code-reviewer-critical` et validation humai
 `KNOWLEDGE_POLICY.md`. Les motifs de bug récurrents confirmés → mémoire projet
 (MCP, non sensible). Toute amélioration de skill de revue se **propose**
 (staging → `sarl-governor` → validation), jamais appliquée seule.
+## Operating rules (code and docs)
+
+- All code, comments, and documentation in English.
+- No icons or emojis anywhere: code, comments, docs, commit messages, project files.
+- No AI traces: no references to assistants or AI-generated markers. Style: professional, technical, concise, human-authored.
+- Use caveman mode (compressed style) by default to save tokens, except for security warnings, irreversible-action confirmations, and multi-step sequences where compression risks misreading.

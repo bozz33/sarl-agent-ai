@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Make premium-target profiles safe to select before premium auth is available."""
+"""Configure premium code profiles now that Claude and Codex OAuth are active.
+
+Historically these profiles were forced onto DeepSeek because premium auth was
+missing. Premium OAuth (Claude Pro/Max, OpenAI Codex) is now connected and tested,
+so codex-builder runs on Codex and code-reviewer-critical on Claude. The model and
+fallback values here mirror configure-active-profiles.py so any run order converges.
+"""
 
 from __future__ import annotations
 
@@ -23,19 +29,19 @@ MCP = {
 }
 
 
-def configure(target: str, template: str, docker_backend: bool) -> None:
+def configure(
+    target: str,
+    template: str,
+    docker_backend: bool,
+    model: dict,
+    fallback_providers: list,
+) -> None:
     template_config = yaml.safe_load(
         (ROOT / template / "config.yaml").read_text(encoding="utf-8")
     )
     config = deepcopy(template_config)
-    config["model"] = {
-        "provider": "deepseek",
-        "default": "deepseek-reasoner",
-    }
-    config["fallback_providers"] = [
-        {"provider": "gemini", "model": "gemini-2.5-flash"},
-        {"provider": "deepseek", "model": "deepseek-chat"},
-    ]
+    config["model"] = dict(model)
+    config["fallback_providers"] = [dict(item) for item in fallback_providers]
     config.pop("provider", None)
     config.pop("base_url", None)
     config.setdefault("checkpoints", {})["enabled"] = True
@@ -60,6 +66,25 @@ def configure(target: str, template: str, docker_backend: bool) -> None:
     )
 
 
-configure("codex-builder", "code-builder", docker_backend=True)
-configure("code-reviewer-critical", "code-reviewer", docker_backend=False)
-print("Configured provisional premium profiles")
+configure(
+    "codex-builder",
+    "code-builder",
+    docker_backend=True,
+    model={"provider": "openai-codex", "default": "gpt-5.1-codex-mini"},
+    fallback_providers=[
+        {"provider": "openai-api", "model": "gpt-4.1"},
+        {"provider": "anthropic", "model": "claude-sonnet-4.6"},
+        {"provider": "deepseek", "model": "deepseek-reasoner"},
+    ],
+)
+configure(
+    "code-reviewer-critical",
+    "code-reviewer",
+    docker_backend=False,
+    model={"provider": "anthropic", "default": "claude-sonnet-4.6"},
+    fallback_providers=[
+        {"provider": "openai-api", "model": "gpt-4.1"},
+        {"provider": "deepseek", "model": "deepseek-reasoner"},
+    ],
+)
+print("Configured premium code profiles")
