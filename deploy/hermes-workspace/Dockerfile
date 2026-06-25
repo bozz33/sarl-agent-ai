@@ -1,13 +1,11 @@
 # Reconstruction de sarl/hermes-workspace depuis le source.
 #
 # IMPORTANT — lire deploy/hermes-workspace/README.md.
-# Ce Dockerfile reconstruit une base VANILLE de l'upstream au commit epingle.
-# Les patches SARL (no-global-sse, suivi borne) doivent etre fournis dans
-# patches/ pour reproduire EXACTEMENT l'image en production
-# (tag d04e1f3-sarl13-no-global-sse). Sans eux, on obtient un workspace
-# upstream non patche.
+# Clone l'upstream au commit epingle, applique les patches SARL versionnes dans
+# patches/ (sarl13-no-global-sse), puis build. Reproduit l'image en production
+# (tag d04e1f3-sarl13-no-global-sse).
 #
-# Build : docker build -t sarl/hermes-workspace:rebuild deploy/hermes-workspace
+# Build : docker build -t sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse deploy/hermes-workspace
 # (volontairement HORS docker-compose pour ne pas ecraser l'image en prod par un
 #  `docker compose up --build`.)
 

@@ -1,7 +1,6 @@
 # Build des images
 
-La stack tourne sur trois images `sarl/*`. Deux sont reconstructibles depuis ce
-dépôt, la troisième ne l'est pas encore.
+La stack tourne sur trois images `sarl/*`, toutes reconstructibles depuis ce dépôt.
 
 ## Reconstructible depuis le repo
 
@@ -18,31 +17,20 @@ dépôt, la troisième ne l'est pas encore.
 Le câblage `build:` est présent dans `docker-compose.yml`. `docker compose up -d`
 réutilise l'image taguée existante ; ajouter `--build` pour reconstruire.
 
-## NON reconstructible depuis le repo (gap)
-
 ### `sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse`
-Build custom de l'upstream `outsourc-e/hermes-workspace` (commit `d04e1f3`) avec
-patches SARL (suppression du SSE global, suivi borné, etc.). L'image embarque
-uniquement le build (`/app/dist`, `server-entry.js`), **pas les sources** : on ne
-peut donc pas régénérer le jeu de patches depuis le conteneur, et l'image n'est
-pas publiée dans un registre (pas de digest distant).
+- Dockerfile + patch : `deploy/hermes-workspace/` (build **hors** compose).
+- Source : upstream `outsourc-e/hermes-workspace` au commit `d04e1f3` + le patch
+  SARL `patches/sarl13-no-global-sse.patch` (30 fichiers : no-global-sse + suivi
+  des missions de chat), récupéré d'une sauvegarde et validé sur upstream vierge.
+- Build : `docker build -t sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse deploy/hermes-workspace`
 
-**Reprise (DR) — disponible** : `scripts/backup-hermes.sh --with-images` exporte
-les images en `.tar` sous `backups/<horodatage>/images/` (tags réels de la stack).
-C'est le chemin de survie si le VPS meurt. Restauration : `docker load -i <file.tar>`.
+Hors `docker-compose` volontairement : un `up --build` écraserait l'image en prod
+sans contrôle. Reconstruire explicitement, tester, retaguer. Détails :
+`deploy/hermes-workspace/README.md`.
 
-```bash
-sudo ./scripts/backup-hermes.sh --consistent --with-images
-docker load -i backups/<horodatage>/images/hermes-workspace-image.tar
-```
-
-**Source-repro (partiel)** : `deploy/hermes-workspace/` fournit un `Dockerfile`
-qui reconstruit une base **vanille** depuis l'upstream au commit épinglé `d04e1f3`
-(`docker build -t sarl/hermes-workspace:rebuild deploy/hermes-workspace`). Les
-patches SARL (`no-global-sse`, suivi borné) restent à récupérer et à déposer dans
-`deploy/hermes-workspace/patches/*.patch` pour reproduire l'image exacte. Détails :
-`deploy/hermes-workspace/README.md`. Build volontairement hors compose (évite
-d'écraser l'image patchée en prod via `up --build`).
+**Reprise (DR)** : `scripts/backup-hermes.sh --with-images` exporte aussi les images
+en `.tar` (tags réels) sous `backups/<horodatage>/images/`. Restauration :
+`docker load -i <file.tar>`.
 
 ## Sandbox
 

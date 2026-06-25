@@ -1,0 +1,2061 @@
+diff --git a/Dockerfile b/Dockerfile
+index c4f905a..6c874c1 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -16,7 +16,7 @@ RUN corepack enable && apt-get update && apt-get install -y --no-install-recomme
+ WORKDIR /app
+ 
+ # Install deps (cache-friendly: copy only manifests first)
+-COPY package.json pnpm-lock.yaml* ./
++COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
+ RUN pnpm install --frozen-lockfile
+ 
+ # Copy sources and build
+diff --git a/docs/chat-mission-tracking.md b/docs/chat-mission-tracking.md
+new file mode 100644
+index 0000000..1784d10
+--- /dev/null
++++ b/docs/chat-mission-tracking.md
+@@ -0,0 +1,38 @@
++# Chat mission tracking
++
++Workspace persists executable requests submitted from Chat into the shared
++Hermes Kanban.
++
++## Behavior
++
++- Informational questions remain in Chat only.
++- Executable requests create a `workspace-chat` task when `/api/send-stream`
++  starts processing.
++- The task is idempotent for a given chat send request.
++- Successful requests move to `done`.
++- Errors and interrupted requests move to `blocked`.
++- Responses that explicitly require human approval remain `blocked`.
++- A Markdown report is written to
++  `reports/chat-missions/<task-id>.md` in the selected workspace.
++
++The tracking task does not create a fake Swarm or Conductor mission. Those
++surfaces are populated only when their orchestration APIs are actually used.
++Operations continues to expose the real profile, session, cron, and usage data.
++Memory is updated only through an explicit memory write.
++
++## Human approval
++
++The tracker recognizes explicit approval gates such as:
++
++```text
++VALIDATION_HUMAINE_REQUISE: oui
++Awaiting your approval
++```
++
++The corresponding task remains in `blocked` with the reason recorded in both
++Tasks and Files.
++
++For SARL stack maintenance, `sarl-stack-steward` may audit, compare versions,
++prepare reports and staging patches, and run non-destructive tests. Compose or
++image changes, system installation, database migration, secrets, deletion,
++restart, deployment, and network exposure require human approval.
+diff --git a/server-entry.js b/server-entry.js
+index 95a21f9..9c34313 100644
+--- a/server-entry.js
++++ b/server-entry.js
+@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
+ import { readFile, stat } from 'node:fs/promises'
+ import { join, extname } from 'node:path'
+ import { fileURLToPath } from 'node:url'
++import { gzipSync } from 'node:zlib'
+ import server from './dist/server/server.js'
+ 
+ const __dirname = fileURLToPath(new URL('.', import.meta.url))
+@@ -104,6 +105,20 @@ const MIME_TYPES = {
+   '.webmanifest': 'application/manifest+json',
+ }
+ 
++// Hashed Vite assets are immutable for the lifetime of this image. Reading
++// multi-megabyte bundles and gzip-compressing them synchronously for every
++// request caused event-loop stalls and large transient allocations under
++// concurrent browser refreshes. Keep one raw and one compressed buffer per
++// hashed asset instead.
++const immutableAssetCache = new Map()
++const SECURITY_HEADERS = {
++  'X-Content-Type-Options': 'nosniff',
++  'X-Frame-Options': 'SAMEORIGIN',
++  'Referrer-Policy': 'no-referrer',
++  'Permissions-Policy':
++    'camera=(), geolocation=(), microphone=(self), payment=(), usb=()',
++}
++
+ async function tryServeStatic(req, res) {
+   const url = new URL(
+     req.url || '/',
+@@ -127,6 +142,7 @@ async function tryServeStatic(req, res) {
+       if (!fileStat.isFile()) throw new Error('not a file')
+     } catch {
+       res.writeHead(404, {
++        ...SECURITY_HEADERS,
+         'Content-Type': 'text/plain; charset=utf-8',
+         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+       })
+@@ -146,12 +162,40 @@ async function tryServeStatic(req, res) {
+ 
+     const ext = extname(filePath).toLowerCase()
+     const contentType = MIME_TYPES[ext] || 'application/octet-stream'
+-    const data = await readFile(filePath)
++    const immutable = pathname.startsWith('/assets/')
++    let cached = immutable ? immutableAssetCache.get(filePath) : undefined
++    if (!cached) {
++      cached = { raw: await readFile(filePath), gzip: null }
++      if (immutable) immutableAssetCache.set(filePath, cached)
++    }
++    const data = cached.raw
++    const acceptsGzip = /\bgzip\b/i.test(req.headers['accept-encoding'] || '')
++    const compressible = new Set([
++      '.js',
++      '.mjs',
++      '.css',
++      '.html',
++      '.json',
++      '.svg',
++      '.txt',
++      '.xml',
++      '.webmanifest',
++      '.map',
++    ])
++    const shouldGzip =
++      acceptsGzip && compressible.has(ext) && data.length >= 1024
++    if (shouldGzip && !cached.gzip) {
++      cached.gzip = gzipSync(data, { level: 6 })
++    }
++    const payload = shouldGzip ? cached.gzip : data
+ 
+     const headers = {
++      ...SECURITY_HEADERS,
+       'Content-Type': contentType,
+-      'Content-Length': data.length,
++      'Content-Length': payload.length,
++      Vary: 'Accept-Encoding',
+     }
++    if (shouldGzip) headers['Content-Encoding'] = 'gzip'
+ 
+     // Cache hashed assets aggressively (they have content hashes in filenames)
+     if (pathname.startsWith('/assets/')) {
+@@ -159,7 +203,7 @@ async function tryServeStatic(req, res) {
+     }
+ 
+     res.writeHead(200, headers)
+-    res.end(data)
++    res.end(payload)
+     return true
+   } catch {
+     return false
+@@ -193,11 +237,19 @@ async function requestHandler(req, res) {
+     })
+   }
+ 
++  const requestAbort = new AbortController()
++  const abortRequest = () => {
++    if (!requestAbort.signal.aborted) requestAbort.abort()
++  }
++  req.once('aborted', abortRequest)
++  res.once('close', abortRequest)
++
+   const request = new Request(url.toString(), {
+     method: req.method,
+     headers,
+     body,
+     duplex: 'half',
++    signal: requestAbort.signal,
+   })
+ 
+   try {
+@@ -205,31 +257,54 @@ async function requestHandler(req, res) {
+ 
+     res.writeHead(
+       response.status,
+-      Object.fromEntries(response.headers.entries()),
++      {
++        ...SECURITY_HEADERS,
++        ...Object.fromEntries(response.headers.entries()),
++      },
+     )
+ 
+     if (response.body) {
+       const reader = response.body.getReader()
++      const cancelReader = () => {
++        if (!res.writableEnded) void reader.cancel().catch(() => {})
++      }
++      res.once('close', cancelReader)
+       const pump = async () => {
+-        while (true) {
+-          const { done, value } = await reader.read()
+-          if (done) break
+-          res.write(value)
++        try {
++          while (!res.destroyed) {
++            const { done, value } = await reader.read()
++            if (done) break
++            if (!res.write(value)) {
++              await new Promise((resolve) => {
++                res.once('drain', resolve)
++                res.once('close', resolve)
++              })
++            }
++          }
++        } finally {
++          res.off('close', cancelReader)
+         }
+-        res.end()
++        if (!res.destroyed) res.end()
+       }
+       pump().catch((err) => {
+-        console.error('Stream error:', err)
+-        res.end()
++        if (!requestAbort.signal.aborted && !res.destroyed) {
++          console.error(`Stream error: ${req.method} ${url.pathname}`, err)
++          res.end()
++        }
+       })
+     } else {
+       const text = await response.text()
+       res.end(text)
+     }
+   } catch (err) {
+-    console.error('Request error:', err)
+-    res.writeHead(500)
+-    res.end('Internal Server Error')
++    if (!requestAbort.signal.aborted && !req.destroyed && !res.destroyed) {
++      console.error(`Request error: ${req.method} ${url.pathname}`, err)
++      res.writeHead(500, SECURITY_HEADERS)
++      res.end('Internal Server Error')
++    }
++  } finally {
++    req.off('aborted', abortRequest)
++    if (res.writableEnded) res.off('close', abortRequest)
+   }
+ }
+ 
+diff --git a/src/lib/tasks-api.ts b/src/lib/tasks-api.ts
+index 87eea12..7eea9b5 100644
+--- a/src/lib/tasks-api.ts
++++ b/src/lib/tasks-api.ts
+@@ -1,19 +1,14 @@
+ /**
+  * Tasks API client with automatic backend detection.
+  *
+- * Two backend routes exist for task storage:
+- *   /api/hermes-tasks  — flat-file store at ~/.hermes/tasks.json (used by agents/cron)
+- *   /api/claude-tasks  — kanban-backend abstraction (local JSON, or Hermes Dashboard proxy)
+- *
+- * On first fetch this module probes both in parallel and selects the backend that has
+- * data. If both have data, hermes-tasks wins (it is the canonical agent task store).
+- * The decision is cached for the page session so subsequent calls never re-probe.
++ * Workspace Tasks is intentionally pinned to the shared Hermes Kanban backend.
++ * The legacy ~/.hermes/tasks.json store remains readable for rollback only and
++ * must not become a second source of truth.
+  *
+  * All mutations (create, update, move, delete, launch) route through the same resolved
+  * backend so reads and writes are always consistent.
+  */
+ 
+-const HERMES_BASE = '/api/hermes-tasks'
+ const CLAUDE_BASE = '/api/claude-tasks'
+ 
+ export type TasksBackend = 'hermes' | 'claude'
+@@ -29,39 +24,15 @@ type BackendResolution = {
+ let _resolved: BackendResolution | null = null
+ let _resolving: Promise<BackendResolution> | null = null
+ 
+-async function probeBackend(base: string): Promise<number> {
+-  try {
+-    const res = await fetch(base, { signal: AbortSignal.timeout(3000) })
+-    if (!res.ok) return 0
+-    // Guard against HTML catch-all responses (route not found returns 200 HTML)
+-    const contentType = res.headers.get('content-type') ?? ''
+-    if (!contentType.includes('application/json')) return -1
+-    const data = await res.json()
+-    return Array.isArray(data.tasks) ? data.tasks.length : 0
+-  } catch {
+-    return 0
+-  }
+-}
+-
+ async function resolveBackend(): Promise<BackendResolution> {
+   if (_resolved) return _resolved
+   if (_resolving) return _resolving
+ 
+   _resolving = (async () => {
+-    const [hermesCount, claudeCount] = await Promise.all([
+-      probeBackend(HERMES_BASE),
+-      probeBackend(CLAUDE_BASE),
+-    ])
+-
+-    // Prefer hermes if it has real data (> 0); fall back to claude if hermes is
+-    // missing (returns -1 for non-JSON / route-not-found) or empty.
+-    // Default to claude when both are empty — it is the active backend after the
+-    // hermes-tasks → claude-tasks route rename (commit efcb7d14).
+-    const useHermes = hermesCount > 0 && hermesCount >= claudeCount
+     _resolved = {
+-      base: useHermes ? HERMES_BASE : CLAUDE_BASE,
+-      assigneesBase: useHermes ? '/api/hermes-tasks-assignees' : '/api/claude-tasks-assignees',
+-      backend: useHermes ? 'hermes' : 'claude',
++      base: CLAUDE_BASE,
++      assigneesBase: '/api/claude-tasks-assignees',
++      backend: 'claude',
+     }
+     return _resolved
+   })()
+diff --git a/src/routeTree.gen.ts b/src/routeTree.gen.ts
+index 6313580..33ab318 100644
+--- a/src/routeTree.gen.ts
++++ b/src/routeTree.gen.ts
+@@ -168,6 +168,7 @@ import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api
+ import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
+ import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
+ import { Route as ApiHermesworldReservationsConfirmRouteImport } from './routes/api/hermesworld/reservations/confirm'
++import { Route as ApiApprovalsRunIdActionRouteImport } from './routes/api/approvals.$runId.$action'
+ import { Route as ApiRunsSessionKeyRunIdAbandonRouteImport } from './routes/api/runs/$sessionKey.$runId.abandon'
+ 
+ const WorldRoute = WorldRouteImport.update({
+@@ -972,6 +973,11 @@ const ApiHermesworldReservationsConfirmRoute =
+     path: '/confirm',
+     getParentRoute: () => ApiHermesworldReservationsRoute,
+   } as any)
++const ApiApprovalsRunIdActionRoute = ApiApprovalsRunIdActionRouteImport.update({
++  id: '/api/approvals/$runId/$action',
++  path: '/api/approvals/$runId/$action',
++  getParentRoute: () => rootRouteImport,
++} as any)
+ const ApiRunsSessionKeyRunIdAbandonRoute =
+   ApiRunsSessionKeyRunIdAbandonRouteImport.update({
+     id: '/api/runs/$sessionKey/$runId/abandon',
+@@ -1134,6 +1140,7 @@ export interface FileRoutesByFullPath {
+   '/api/update/agent': typeof ApiUpdateAgentRoute
+   '/api/update/status': typeof ApiUpdateStatusRoute
+   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
++  '/api/approvals/$runId/$action': typeof ApiApprovalsRunIdActionRoute
+   '/api/hermesworld/reservations/confirm': typeof ApiHermesworldReservationsConfirmRoute
+   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
+   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+@@ -1295,6 +1302,7 @@ export interface FileRoutesByTo {
+   '/api/update/agent': typeof ApiUpdateAgentRoute
+   '/api/update/status': typeof ApiUpdateStatusRoute
+   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
++  '/api/approvals/$runId/$action': typeof ApiApprovalsRunIdActionRoute
+   '/api/hermesworld/reservations/confirm': typeof ApiHermesworldReservationsConfirmRoute
+   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
+   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+@@ -1458,6 +1466,7 @@ export interface FileRoutesById {
+   '/api/update/agent': typeof ApiUpdateAgentRoute
+   '/api/update/status': typeof ApiUpdateStatusRoute
+   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
++  '/api/approvals/$runId/$action': typeof ApiApprovalsRunIdActionRoute
+   '/api/hermesworld/reservations/confirm': typeof ApiHermesworldReservationsConfirmRoute
+   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
+   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+@@ -1622,6 +1631,7 @@ export interface FileRouteTypes {
+     | '/api/update/agent'
+     | '/api/update/status'
+     | '/api/update/workspace'
++    | '/api/approvals/$runId/$action'
+     | '/api/hermesworld/reservations/confirm'
+     | '/api/mcp/$name/logs'
+     | '/api/mcp/hub-sources/$id'
+@@ -1783,6 +1793,7 @@ export interface FileRouteTypes {
+     | '/api/update/agent'
+     | '/api/update/status'
+     | '/api/update/workspace'
++    | '/api/approvals/$runId/$action'
+     | '/api/hermesworld/reservations/confirm'
+     | '/api/mcp/$name/logs'
+     | '/api/mcp/hub-sources/$id'
+@@ -1945,6 +1956,7 @@ export interface FileRouteTypes {
+     | '/api/update/agent'
+     | '/api/update/status'
+     | '/api/update/workspace'
++    | '/api/approvals/$runId/$action'
+     | '/api/hermesworld/reservations/confirm'
+     | '/api/mcp/$name/logs'
+     | '/api/mcp/hub-sources/$id'
+@@ -2082,6 +2094,7 @@ export interface RootRouteChildren {
+   ApiUpdateAgentRoute: typeof ApiUpdateAgentRoute
+   ApiUpdateStatusRoute: typeof ApiUpdateStatusRoute
+   ApiUpdateWorkspaceRoute: typeof ApiUpdateWorkspaceRoute
++  ApiApprovalsRunIdActionRoute: typeof ApiApprovalsRunIdActionRoute
+   ApiRunsSessionKeyRunIdAbandonRoute: typeof ApiRunsSessionKeyRunIdAbandonRoute
+ }
+ 
+@@ -3200,6 +3213,13 @@ declare module '@tanstack/react-router' {
+       preLoaderRoute: typeof ApiHermesworldReservationsConfirmRouteImport
+       parentRoute: typeof ApiHermesworldReservationsRoute
+     }
++    '/api/approvals/$runId/$action': {
++      id: '/api/approvals/$runId/$action'
++      path: '/api/approvals/$runId/$action'
++      fullPath: '/api/approvals/$runId/$action'
++      preLoaderRoute: typeof ApiApprovalsRunIdActionRouteImport
++      parentRoute: typeof rootRouteImport
++    }
+     '/api/runs/$sessionKey/$runId/abandon': {
+       id: '/api/runs/$sessionKey/$runId/abandon'
+       path: '/api/runs/$sessionKey/$runId/abandon'
+@@ -3551,6 +3571,7 @@ const rootRouteChildren: RootRouteChildren = {
+   ApiUpdateAgentRoute: ApiUpdateAgentRoute,
+   ApiUpdateStatusRoute: ApiUpdateStatusRoute,
+   ApiUpdateWorkspaceRoute: ApiUpdateWorkspaceRoute,
++  ApiApprovalsRunIdActionRoute: ApiApprovalsRunIdActionRoute,
+   ApiRunsSessionKeyRunIdAbandonRoute: ApiRunsSessionKeyRunIdAbandonRoute,
+ }
+ export const routeTree = rootRouteImport
+diff --git a/src/routes/api/-hermes-config.test.ts b/src/routes/api/-hermes-config.test.ts
+index ba7e299..287277b 100644
+--- a/src/routes/api/-hermes-config.test.ts
++++ b/src/routes/api/-hermes-config.test.ts
+@@ -8,7 +8,7 @@ vi.mock('@tanstack/react-router', () => ({
+ }))
+ 
+ vi.mock('../../server/auth-middleware', () => ({
+-  isAuthenticated: () => true,
++  isAuthenticated: vi.fn(() => true),
+ }))
+ 
+ vi.mock('../../server/gateway-capabilities', () => ({
+@@ -53,6 +53,18 @@ async function loadHandlers(modulePath: string) {
+ }
+ 
+ describe('canonical /api/hermes-config route', () => {
++  it('GET returns 401 instead of throwing when authentication is missing', async () => {
++    const auth = await import('../../server/auth-middleware')
++    vi.mocked(auth.isAuthenticated).mockReturnValueOnce(false)
++    const handlers = await loadHandlers('./hermes-config')
++    const res = await handlers.GET({
++      request: new Request('http://localhost/api/hermes-config'),
++    })
++
++    expect(res.status).toBe(401)
++    await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' })
++  })
++
+   it('GET returns normalized provider state with paths and active provider', async () => {
+     fs.writeFileSync(
+       path.join(tmpHome, 'config.yaml'),
+@@ -144,7 +156,10 @@ describe('canonical /api/hermes-config route', () => {
+       }),
+     })
+     expect(res.status).toBe(503)
+-    vi.doUnmock('../../server/gateway-capabilities')
++    vi.doMock('../../server/gateway-capabilities', () => ({
++      ensureGatewayProbed: vi.fn(),
++      getCapabilities: () => ({ config: true }),
++    }))
+   })
+ })
+ 
+diff --git a/src/routes/api/approvals.$runId.$action.ts b/src/routes/api/approvals.$runId.$action.ts
+new file mode 100644
+index 0000000..b519a52
+--- /dev/null
++++ b/src/routes/api/approvals.$runId.$action.ts
+@@ -0,0 +1,51 @@
++import { createFileRoute } from '@tanstack/react-router'
++import { json } from '@tanstack/react-start'
++import { isAuthenticated } from '../../server/auth-middleware'
++import {
++  BEARER_TOKEN,
++  CLAUDE_API,
++} from '../../server/gateway-capabilities'
++
++const ACTION_CHOICES: Record<string, string> = {
++  approve: 'once',
++  once: 'once',
++  session: 'session',
++  always: 'always',
++  deny: 'deny',
++}
++
++export const Route = createFileRoute('/api/approvals/$runId/$action')({
++  server: {
++    handlers: {
++      POST: async ({ request, params }) => {
++        if (!isAuthenticated(request)) {
++          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
++        }
++
++        const choice = ACTION_CHOICES[params.action]
++        if (!choice) {
++          return json(
++            { ok: false, error: 'Invalid approval action' },
++            { status: 400 },
++          )
++        }
++
++        const upstream = await fetch(
++          `${CLAUDE_API}/v1/runs/${encodeURIComponent(params.runId)}/approval`,
++          {
++            method: 'POST',
++            headers: {
++              'content-type': 'application/json',
++              ...(BEARER_TOKEN
++                ? { authorization: `Bearer ${BEARER_TOKEN}` }
++                : {}),
++            },
++            body: JSON.stringify({ choice }),
++          },
++        )
++        const payload = await upstream.json().catch(() => ({}))
++        return json(payload, { status: upstream.status })
++      },
++    },
++  },
++})
+diff --git a/src/routes/api/mcp.ts b/src/routes/api/mcp.ts
+index 4aba099..833a03f 100644
+--- a/src/routes/api/mcp.ts
++++ b/src/routes/api/mcp.ts
+@@ -22,6 +22,7 @@ import type { McpServerInput } from '../../types/mcp-input'
+ import { parseMcpServerInput } from '../../server/mcp-input-validate'
+ import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
+ import { getProbe } from '../../server/mcp-tools-cache'
++import { listProfileMcpServers } from '../../server/profile-mcp-registry'
+ 
+ const KNOWN_CATEGORIES = ['All', 'Connected', 'Failed', 'Disabled'] as const
+ const REQUEST_TIMEOUT_MS = 30_000
+@@ -113,7 +114,12 @@ export const Route = createFileRoute('/api/mcp')({
+           return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+         }
+         const capabilities = await ensureGatewayProbed()
+-        if (!capabilities.mcp && !capabilities.mcpFallback) {
++        const profileServers = listProfileMcpServers()
++        if (
++          !capabilities.mcp &&
++          !capabilities.mcpFallback &&
++          profileServers.length === 0
++        ) {
+           return json(unavailableListPayload())
+         }
+         try {
+@@ -122,6 +128,7 @@ export const Route = createFileRoute('/api/mcp')({
+           const category = (url.searchParams.get('category') || 'All').trim()
+ 
+           let servers: ReturnType<typeof normalizeMcpList>
++          let mode: 'native' | 'fallback' | 'profiles' = 'native'
+           if (capabilities.mcp) {
+             const response = await mcpFetch('/api/mcp', {
+               signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+@@ -138,6 +145,11 @@ export const Route = createFileRoute('/api/mcp')({
+             const body = (await response.json().catch(() => null)) as unknown
+             servers = normalizeMcpList(body).map((s) => maskSecretsInPlace(s))
+           } else {
++            if (!capabilities.mcpFallback) {
++              mode = 'profiles'
++              servers = profileServers
++            } else {
++              mode = 'fallback'
+             // Phase 1.5 fallback — read config.mcp_servers, then hydrate
+             // status + discoveredToolsCount from the in-memory probe cache
+             // (populated by /api/mcp/test which shells out to the hermes
+@@ -156,6 +168,7 @@ export const Route = createFileRoute('/api/mcp')({
+                   lastError: probe.error || s.lastError,
+                 }
+               })
++            }
+           }
+ 
+           const filtered = servers.filter((s) => {
+@@ -175,6 +188,7 @@ export const Route = createFileRoute('/api/mcp')({
+             servers: filtered,
+             total: filtered.length,
+             categories: [...KNOWN_CATEGORIES],
++            mode,
+           })
+         } catch (err) {
+           return json(
+@@ -190,6 +204,21 @@ export const Route = createFileRoute('/api/mcp')({
+         const csrfCheck = requireJsonContentType(request)
+         if (csrfCheck) return csrfCheck
+         const capabilities = await ensureGatewayProbed()
++        if (
++          !capabilities.mcp &&
++          !capabilities.mcpFallback &&
++          listProfileMcpServers().length > 0
++        ) {
++          return json(
++            {
++              ok: false,
++              code: 'profile_registry_read_only',
++              error:
++                'MCP is managed per Hermes profile. Add or modify servers in the selected profile configuration.',
++            },
++            { status: 403 },
++          )
++        }
+         if (!capabilities.mcp && !capabilities.mcpFallback) {
+           return json(
+             createCapabilityUnavailablePayload('mcp', {
+diff --git a/src/routes/api/send-stream.ts b/src/routes/api/send-stream.ts
+index 005aec3..cc12c80 100644
+--- a/src/routes/api/send-stream.ts
++++ b/src/routes/api/send-stream.ts
+@@ -22,6 +22,11 @@ import { getDiscoveredModels, getLocalProviderDef } from '../../server/local-pro
+ import { openaiChat } from '../../server/openai-compat-api'
+ import { streamResponses } from '../../server/responses-api'
+ import { selectPortableConversationHistory } from '../../server/portable-history'
++import {
++  finishChatWorkTracking,
++  responseRequiresHumanApproval,
++  startChatWorkTracking,
++} from '../../server/chat-work-tracking'
+ import {
+   SESSIONS_API_UNAVAILABLE_MESSAGE,
+   createSession,
+@@ -375,16 +380,58 @@ export const Route = createFileRoute('/api/send-stream')({
+           getChatMessage(message, attachments),
+           workspaceScope,
+         )
++        const trackingPromise = startChatWorkTracking({
++          message,
++          sessionKey,
++          friendlyId: resolvedFriendlyId,
++          idempotencyKey:
++            typeof body.idempotencyKey === 'string'
++              ? body.idempotencyKey
++              : null,
++          workspaceRoot:
++            workspaceScope?.isValid && workspaceScope.path
++              ? workspaceScope.path
++              : null,
++        }).catch((error) => {
++          console.warn('[send-stream] chat work tracking start failed:', error)
++          return null
++        })
++        let trackingFinalized = false
++        const finalizeChatTracking = async (input: {
++          status: 'complete' | 'blocked' | 'interrupted'
++          summary?: string | null
++          error?: string | null
++        }) => {
++          if (trackingFinalized) return
++          trackingFinalized = true
++          const tracking = await trackingPromise
++          if (!tracking) return
++          const approvalRequired =
++            input.status === 'complete' &&
++            responseRequiresHumanApproval(input.summary ?? '')
++          await finishChatWorkTracking(tracking, {
++            status: approvalRequired ? 'blocked' : input.status,
++            summary: input.summary,
++            error: approvalRequired
++              ? 'Validation humaine requise avant la poursuite de la mission.'
++              : input.error,
++          }).catch((error) => {
++            console.warn(
++              '[send-stream] chat work tracking finalize failed:',
++              error,
++            )
++          })
++        }
+ 
+         // Create streaming response using the SHARED server connection
+         const encoder = new TextEncoder()
+         let streamClosed = false
+         let activeRunId: string | null = null
+         let activeRunSessionKey: string | null = null
++        let finalAssistantText = ''
+         let persistedRunReady: Promise<unknown> | null = null
+         let unregisterTimer: ReturnType<typeof setTimeout> | null = null
+         let streamTimeoutTimer: ReturnType<typeof setTimeout> | null = null
+-        let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+         const abortController = new AbortController()
+         // Close out the SSE stream — stop enqueueing, clear timers, and
+         // abort the upstream Hermes gateway request so the agent stops
+@@ -393,10 +440,6 @@ export const Route = createFileRoute('/api/send-stream')({
+         let closeStream = () => {
+           if (streamClosed) return
+           streamClosed = true
+-          if (heartbeatTimer) {
+-            clearInterval(heartbeatTimer)
+-            heartbeatTimer = null
+-          }
+           if (unregisterTimer) {
+             clearTimeout(unregisterTimer)
+             unregisterTimer = null
+@@ -419,6 +462,11 @@ export const Route = createFileRoute('/api/send-stream')({
+             unregisterActiveSendRun(activeRunId)
+             activeRunId = null
+           }
++          void finalizeChatTracking({
++            status: 'interrupted',
++            summary: finalAssistantText,
++            error: 'Exécution interrompue depuis le chat.',
++          })
+           closeStream()
+         }
+         request.signal.addEventListener('abort', () => handleAbort(), { once: true })
+@@ -451,7 +499,6 @@ export const Route = createFileRoute('/api/send-stream')({
+         const stream = new ReadableStream({
+           async start(controller) {
+             let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+-            let lastClientEventAt = Date.now()
+             // Track the last human-readable activity so the heartbeat can
+             // forward it to the UI. Without this the ThinkingBubble shows a
+             // static "Thinking…" for minutes when the agent is reasoning
+@@ -463,7 +510,6 @@ export const Route = createFileRoute('/api/send-stream')({
+             }
+             const sendEvent = (event: string, data: unknown) => {
+               if (streamClosed) return
+-              lastClientEventAt = Date.now()
+               const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+               enqueueRaw(payload)
+             }
+@@ -474,17 +520,6 @@ export const Route = createFileRoute('/api/send-stream')({
+             // lightweight recognized event periodically so public Workspace chats
+             // do not sit at "Thinking…" until the frontend reports failure.
+             enqueueRaw(`: ${' '.repeat(2048)}\n\n`)
+-            heartbeatTimer = setInterval(() => {
+-              if (streamClosed) return
+-              if (Date.now() - lastClientEventAt < 10_000) return
+-              // Heartbeat to keep Cloudflare/Access from culling the SSE stream.
+-              // Use a dedicated hb_signal event (not 'thinking') so it does not
+-              // pollute the TUI activity card with fake thinking text. Send a
+-              // tiny SSE comment as the actual keepalive byte.
+-              sendEvent('hb_signal', { sessionKey })
+-              enqueueRaw(': keepalive\n\n')
+-            }, 10_000)
+-
+             closeStream = () => {
+               if (streamClosed) return
+               streamClosed = true
+@@ -518,7 +553,11 @@ export const Route = createFileRoute('/api/send-stream')({
+             // Every 10s we also forward the last known activity so the UI can
+             // show meaningful progress instead of a static "Thinking…".
+             heartbeatTimer = setInterval(() => {
+-              sendEvent('heartbeat', { timestamp: Date.now(), activity: lastActivity })
++              sendEvent('heartbeat', {
++                timestamp: Date.now(),
++                activity: lastActivity,
++              })
++              enqueueRaw(': keepalive\n\n')
+             }, 10_000)
+ 
+             try {
+@@ -730,6 +769,11 @@ export const Route = createFileRoute('/api/send-stream')({
+                       persistActiveRun((runSessionKey, activeId) =>
+                         markRunStatus(runSessionKey, activeId, 'complete'),
+                       )
++                      finalAssistantText = accumulated
++                      await finalizeChatTracking({
++                        status: 'complete',
++                        summary: accumulated,
++                      })
+                       sendEvent('done', {
+                         state: 'complete',
+                         sessionKey: portableSessionKey,
+@@ -845,6 +889,11 @@ export const Route = createFileRoute('/api/send-stream')({
+                   persistActiveRun((runSessionKey, activeId) =>
+                     markRunStatus(runSessionKey, activeId, 'complete'),
+                   )
++                  finalAssistantText = accumulated
++                  await finalizeChatTracking({
++                    status: 'complete',
++                    summary: accumulated,
++                  })
+                   sendEvent('done', {
+                     state: 'complete',
+                     sessionKey: portableSessionKey,
+@@ -864,6 +913,11 @@ export const Route = createFileRoute('/api/send-stream')({
+                     persistActiveRun((runSessionKey, activeId) =>
+                       markRunStatus(runSessionKey, activeId, 'error', errorMessage),
+                     )
++                    await finalizeChatTracking({
++                      status: 'blocked',
++                      summary: accumulated,
++                      error: errorMessage,
++                    })
+                     sendEvent('error', {
+                       message: errorMessage,
+                       sessionKey: portableSessionKey,
+@@ -1109,6 +1163,7 @@ export const Route = createFileRoute('/api/send-stream')({
+                       const content =
+                         typeof data.content === 'string' ? data.content : ''
+                       if (content) {
++                        finalAssistantText = content
+                         persistActiveRun((runSessionKey, activeId) =>
+                           appendRunText(runSessionKey, activeId, content, {
+                             replace: true,
+@@ -1130,6 +1185,7 @@ export const Route = createFileRoute('/api/send-stream')({
+                       const delta =
+                         typeof data.delta === 'string' ? data.delta : ''
+                       if (!delta) return
++                      finalAssistantText += delta
+                       persistActiveRun((runSessionKey, activeId) =>
+                         appendRunText(runSessionKey, activeId, delta),
+                       )
+@@ -1143,6 +1199,32 @@ export const Route = createFileRoute('/api/send-stream')({
+                       return
+                     }
+ 
++                    if (event === 'approval.request') {
++                      const approvalId = runId || readString(data.run_id)
++                      const translated = {
++                        id: approvalId,
++                        approvalId,
++                        action:
++                          readString(data.command) ||
++                          readString(data.action) ||
++                          readString(data.tool) ||
++                          'Tool call requires approval',
++                        context:
++                          readString(data.description) ||
++                          readString(data.context) ||
++                          readString(data.preview),
++                        tool: readString(data.tool) || undefined,
++                        input: data.input ?? data.args,
++                        sessionKey: sessionKeyFromEvent,
++                        agentName: 'Hermes Agent',
++                        runId: approvalId,
++                      }
++                      sendEvent('approval', translated)
++                      skipPublish || publishChatEvent('approval', translated)
++                      lastActivity = 'Waiting for your approval'
++                      return
++                    }
++
+                     if (
+                       event === 'tool.pending' ||
+                       event === 'tool.started' ||
+@@ -1371,6 +1453,11 @@ export const Route = createFileRoute('/api/send-stream')({
+                           errorMessage,
+                         ),
+                       )
++                      await finalizeChatTracking({
++                        status: 'blocked',
++                        summary: finalAssistantText,
++                        error: errorMessage,
++                      })
+                       sendEvent('error', {
+                         message: errorMessage,
+                         sessionKey: sessionKeyFromEvent,
+@@ -1484,6 +1571,10 @@ export const Route = createFileRoute('/api/send-stream')({
+                       persistActiveRun((runSessionKey, activeId) =>
+                         markRunStatus(runSessionKey, activeId, 'complete'),
+                       )
++                      await finalizeChatTracking({
++                        status: 'complete',
++                        summary: finalAssistantText,
++                      })
+                       sendEvent('done', translated)
+                       skipPublish || publishChatEvent('done', translated)
+                       closeStream()
+@@ -1504,6 +1595,11 @@ export const Route = createFileRoute('/api/send-stream')({
+               // Set a timeout to close the stream if no completion event
+               streamTimeoutTimer = setTimeout(() => {
+                 if (!streamClosed) {
++                  void finalizeChatTracking({
++                    status: 'blocked',
++                    summary: finalAssistantText,
++                    error: 'Stream timeout',
++                  })
+                   sendEvent('error', { message: 'Stream timeout' })
+                   closeStream()
+                 }
+@@ -1512,6 +1608,11 @@ export const Route = createFileRoute('/api/send-stream')({
+               // Only send error if stream hasn't already completed successfully
+               if (!streamClosed) {
+                 const errorMsg = normalizeClaudeErrorMessage(err)
++                await finalizeChatTracking({
++                  status: 'blocked',
++                  summary: finalAssistantText,
++                  error: errorMsg,
++                })
+                 sendEvent('error', {
+                   message: errorMsg,
+                   sessionKey,
+diff --git a/src/routes/api/sessions/$sessionKey.active-run.ts b/src/routes/api/sessions/$sessionKey.active-run.ts
+index e06f1eb..194449a 100644
+--- a/src/routes/api/sessions/$sessionKey.active-run.ts
++++ b/src/routes/api/sessions/$sessionKey.active-run.ts
+@@ -1,7 +1,10 @@
+ import { createFileRoute } from '@tanstack/react-router'
+ import { json } from '@tanstack/react-start'
+ import { isAuthenticated } from '../../../server/auth-middleware'
+-import { getActiveRunForSession } from '../../../server/run-store'
++import {
++  getActiveRunForSession,
++  getLatestRunForSession,
++} from '../../../server/run-store'
+ 
+ export const Route = createFileRoute('/api/sessions/$sessionKey/active-run')({
+   server: {
+@@ -20,8 +23,11 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/active-run')({
+         }
+ 
+         try {
+-          const run = await getActiveRunForSession(sessionKey)
+-          return json({ ok: true, run })
++          const [run, latestRun] = await Promise.all([
++            getActiveRunForSession(sessionKey),
++            getLatestRunForSession(sessionKey),
++          ])
++          return json({ ok: true, run, latestRun })
+         } catch (err) {
+           return json(
+             {
+diff --git a/src/routes/api/terminal-stream.ts b/src/routes/api/terminal-stream.ts
+index 2728a83..f5cac4c 100644
+--- a/src/routes/api/terminal-stream.ts
++++ b/src/routes/api/terminal-stream.ts
+@@ -63,6 +63,7 @@ export const Route = createFileRoute('/api/terminal-stream')({
+             : null
+ 
+         const encoder = new TextEncoder()
++        let abortActiveStream: (() => void) | null = null
+         const stream = new ReadableStream({
+           start(controller) {
+             let isStreamActive = true
+@@ -144,6 +145,7 @@ export const Route = createFileRoute('/api/terminal-stream')({
+             }, 8000)
+ 
+             const abort = () => {
++              if (!isStreamActive) return
+               isStreamActive = false
+               clearInterval(keepAlive)
+               session.emitter.off('event', handleEvent)
+@@ -155,7 +157,12 @@ export const Route = createFileRoute('/api/terminal-stream')({
+               session.markDetached()
+             }
+ 
+-            request.signal.addEventListener('abort', abort)
++            abortActiveStream = abort
++            request.signal.addEventListener('abort', abort, { once: true })
++          },
++          cancel() {
++            abortActiveStream?.()
++            abortActiveStream = null
+           },
+         })
+ 
+diff --git a/src/routes/mcp.tsx b/src/routes/mcp.tsx
+index 3d9b6ae..ac9ef81 100644
+--- a/src/routes/mcp.tsx
++++ b/src/routes/mcp.tsx
+@@ -1,8 +1,5 @@
+ import { createFileRoute } from '@tanstack/react-router'
+-import BackendUnavailableState from '@/components/backend-unavailable-state'
+ import { usePageTitle } from '@/hooks/use-page-title'
+-import { getUnavailableReason } from '@/lib/feature-gates'
+-import { useFeatureAvailable } from '@/hooks/use-feature-available'
+ import { McpScreen } from '@/screens/mcp/mcp-screen'
+ 
+ export const Route = createFileRoute('/mcp')({
+@@ -12,15 +9,5 @@ export const Route = createFileRoute('/mcp')({
+ 
+ function McpRoute() {
+   usePageTitle('MCP Servers')
+-  const native = useFeatureAvailable('mcp')
+-  const fallback = useFeatureAvailable('mcpFallback')
+-  if (!native && !fallback) {
+-    return (
+-      <BackendUnavailableState
+-        feature="MCP Servers"
+-        description={getUnavailableReason('mcp')}
+-      />
+-    )
+-  }
+   return <McpScreen />
+ }
+diff --git a/src/screens/chat/chat-screen.tsx b/src/screens/chat/chat-screen.tsx
+index 9b81a52..1dafd68 100644
+--- a/src/screens/chat/chat-screen.tsx
++++ b/src/screens/chat/chat-screen.tsx
+@@ -496,6 +496,9 @@ export function ChatScreen({
+   const failsafeTimerRef = useRef<number | null>(null)
+   const lastAssistantSignature = useRef('')
+   const refreshHistoryRef = useRef<() => void>(() => {})
++  const recoverCompletedRunRef = useRef<
++    (input: { text: string; runId?: string }) => void
++  >(() => {})
+   const retriedQueuedMessageKeysRef = useRef(new Set<string>())
+   const hasSeenDisconnectRef = useRef(false)
+   const hadErrorRef = useRef(false)
+@@ -948,12 +951,15 @@ export function ChatScreen({
+     return () => window.clearTimeout(fallback)
+   }, [waitingForResponse])
+ 
+-  // Issue #43 polling fallback: when waiting but SSE hasn't reconnected,
+-  // poll the active-run endpoint every 5s to detect completion.
++  // Persisted-run fallback: SSE can remain connected while its final event is
++  // lost by a proxy/browser. Poll the tiny run record while waiting and use
++  // its final assistant text to complete the UI deterministically.
+   useEffect(() => {
+     if (!waitingForResponse || !resolvedSessionKey) return
+-    if (sseConnectionState === 'connected') return // SSE will deliver the event
++    let inFlight = false
+     const interval = window.setInterval(async () => {
++      if (inFlight) return
++      inFlight = true
+       try {
+         const res = await fetch(
+           `/api/sessions/${encodeURIComponent(resolvedSessionKey)}/active-run`,
+@@ -961,19 +967,35 @@ export function ChatScreen({
+         if (!res.ok) return
+         const data = await res.json()
+         if (!data.ok) return
+-        // Run not yet registered (gateway lag during silent processing) → keep waiting
+-        if (!data.run) return
+-        // Treat unknown / transient statuses as still-active to avoid premature teardown
+-        if (isTerminalActiveRunStatus(data.run.status)) {
++        const candidate = data.run ?? data.latestRun
++        if (!candidate) return
++        if (
++          isTerminalActiveRunStatus(candidate.status) &&
++          typeof candidate.assistantText === 'string' &&
++          candidate.assistantText.trim()
++        ) {
++          recoverCompletedRunRef.current({
++            text: candidate.assistantText,
++            runId:
++              typeof candidate.runId === 'string'
++                ? candidate.runId
++                : undefined,
++          })
+           streamFinish()
+           refreshHistoryRef.current()
+         }
+       } catch {
+         // ignore network errors
++      } finally {
++        inFlight = false
+       }
+     }, 5000)
+     return () => window.clearInterval(interval)
+-  }, [waitingForResponse, resolvedSessionKey, sseConnectionState, streamFinish])
++  }, [
++    waitingForResponse,
++    resolvedSessionKey,
++    streamFinish,
++  ])
+ 
+   useAutoSessionTitle({
+     friendlyId: activeFriendlyId,
+@@ -1126,6 +1148,7 @@ export function ChatScreen({
+     streamingMessageId: localStreamingMessageId,
+     startStreaming,
+     cancelStreaming,
++    recoverCompletedRun,
+   } = useStreamingMessage({
+     pinMainSession:
+       activeFriendlyId === 'main' &&
+@@ -1177,6 +1200,56 @@ export function ChatScreen({
+       },
+       [queryClient],
+     ),
++    onApprovalRequest: useCallback((payload: Record<string, unknown>) => {
++      const approvalId =
++        typeof payload.id === 'string'
++          ? payload.id
++          : typeof payload.approvalId === 'string'
++            ? payload.approvalId
++            : ''
++      const currentApprovals = loadApprovals()
++      if (
++        approvalId &&
++        currentApprovals.some(
++          (entry) =>
++            entry.status === 'pending' &&
++            entry.gatewayApprovalId === approvalId,
++        )
++      ) {
++        setPendingApprovals(
++          currentApprovals.filter((entry) => entry.status === 'pending'),
++        )
++        return
++      }
++
++      const actionValue = payload.action ?? payload.tool ?? payload.command
++      const contextValue = payload.context ?? payload.input ?? payload.args
++      addApproval({
++        agentId:
++          typeof payload.sessionKey === 'string'
++            ? payload.sessionKey
++            : 'hermes',
++        agentName:
++          typeof payload.agentName === 'string'
++            ? payload.agentName
++            : 'Hermes Agent',
++        action:
++          typeof actionValue === 'string'
++            ? actionValue
++            : 'Tool call requires approval',
++        context:
++          typeof contextValue === 'string'
++            ? contextValue
++            : contextValue
++              ? JSON.stringify(contextValue)
++              : '',
++        source: 'gateway',
++        gatewayApprovalId: approvalId || undefined,
++      })
++      setPendingApprovals(
++        loadApprovals().filter((entry) => entry.status === 'pending'),
++      )
++    }, []),
+     onComplete: useCallback((message: ChatMessage) => {
+       const activeSend = activeSendRef.current
+       if (activeSend?.clientId) {
+@@ -1277,6 +1350,7 @@ export function ChatScreen({
+     acceptedTimeoutMs: modelsQuery.data?.streamAcceptedTimeoutMs,
+     handoffTimeoutMs: modelsQuery.data?.streamHandoffTimeoutMs,
+   })
++  recoverCompletedRunRef.current = recoverCompletedRun
+ 
+   // Cancel any in-flight stream when the user navigates between sessions or
+   // starts a new chat. Without this, an SSE stream from session A keeps
+diff --git a/src/screens/chat/hooks/use-streaming-message.ts b/src/screens/chat/hooks/use-streaming-message.ts
+index 057a181..0d429f8 100644
+--- a/src/screens/chat/hooks/use-streaming-message.ts
++++ b/src/screens/chat/hooks/use-streaming-message.ts
+@@ -78,6 +78,7 @@ type UseStreamingMessageOptions = {
+   onError?: (error: string) => void
+   onThinking?: (thinking: string) => void
+   onTool?: (tool: unknown) => void
++  onApprovalRequest?: (approval: Record<string, unknown>) => void
+   onMessageAccepted?: (
+     sessionKey: string,
+     friendlyId: string,
+@@ -101,6 +102,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
+     onError,
+     onThinking,
+     onTool,
++    onApprovalRequest,
+     onMessageAccepted,
+     onAbort,
+     onSessionResolved,
+@@ -626,6 +628,16 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
+           onTool?.(payload)
+           break
+         }
++        case 'approval': {
++          markActivity()
++          pushActivity({
++            type: 'tool_call',
++            time: new Date().toLocaleTimeString(),
++            text: 'Waiting for approval',
++          })
++          onApprovalRequest?.(payload)
++          break
++        }
+         case 'artifact': {
+           markActivity()
+           const title =
+@@ -1057,6 +1069,24 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
+     }
+   }, [resetActiveStreamState, transitionToHandoff])
+ 
++  const recoverCompletedRun = useCallback(
++    (input: { text: string; runId?: string }) => {
++      const text = input.text.trim()
++      if (!text) return
++      finishedRef.current = false
++      lifecyclePhaseRef.current = 'active'
++      if (input.runId) {
++        activeRunIdRef.current = input.runId
++      }
++      pushTargetText(text)
++      finishStream({
++        runId: input.runId,
++        recovered: true,
++      })
++    },
++    [finishStream, pushTargetText],
++  )
++
+   const resetStreaming = useCallback(() => {
+     cancelStreaming()
+     setState({
+@@ -1071,6 +1101,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
+     ...state,
+     startStreaming,
+     cancelStreaming,
++    recoverCompletedRun,
+     resetStreaming,
+   }
+ }
+diff --git a/src/screens/mcp/components/mcp-server-card.tsx b/src/screens/mcp/components/mcp-server-card.tsx
+index 1e44470..d7c3880 100644
+--- a/src/screens/mcp/components/mcp-server-card.tsx
++++ b/src/screens/mcp/components/mcp-server-card.tsx
+@@ -49,6 +49,7 @@ export function McpServerCard({ server, onEdit }: Props) {
+   const oauth = useMcpOauth()
+   const { mode: capabilityMode } = useMcpCapabilityMode()
+   const fallbackMode = capabilityMode === 'fallback'
++  const readOnly = capabilityMode === 'profiles' || server.readOnly === true
+   // Test + Refresh work in fallback mode via the hermes CLI bridge
+   // (workspace shells out to `hermes mcp test <name>`). Logs and Reauth
+   // still require the live runtime /api/mcp endpoints.
+@@ -78,7 +79,7 @@ export function McpServerCard({ server, onEdit }: Props) {
+         </div>
+         <Switch
+           checked={server.enabled}
+-          disabled={configure.isPending}
++          disabled={configure.isPending || readOnly}
+           onCheckedChange={(checked) =>
+             configure.mutate({ name: server.name, enabled: checked })
+           }
+@@ -98,6 +99,14 @@ export function McpServerCard({ server, onEdit }: Props) {
+           <dd className="font-medium text-ink">{server.authType}</dd>
+         </div>
+       </dl>
++      {server.profiles && server.profiles.length > 0 ? (
++        <div className="text-xs text-primary-500">
++          Profiles:{' '}
++          <span className="font-medium text-ink">
++            {server.profiles.join(', ')}
++          </span>
++        </div>
++      ) : null}
+ 
+       {server.lastError ? (
+         <p className="rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
+@@ -105,7 +114,7 @@ export function McpServerCard({ server, onEdit }: Props) {
+         </p>
+       ) : null}
+ 
+-      <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
++      {!readOnly ? <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
+         <Button
+           variant="outline"
+           size="sm"
+@@ -166,7 +175,11 @@ export function McpServerCard({ server, onEdit }: Props) {
+             Delete
+           </Button>
+         )}
+-      </div>
++      </div> : (
++        <p className="mt-auto text-xs text-primary-500">
++          Managed in profile configuration.
++        </p>
++      )}
+ 
+       {testResult ? (
+         <p className="text-xs text-primary-500">
+diff --git a/src/screens/mcp/hooks/use-mcp-capability-mode.ts b/src/screens/mcp/hooks/use-mcp-capability-mode.ts
+index 55604ce..0f5ad00 100644
+--- a/src/screens/mcp/hooks/use-mcp-capability-mode.ts
++++ b/src/screens/mcp/hooks/use-mcp-capability-mode.ts
+@@ -1,13 +1,6 @@
+ import { useQuery } from '@tanstack/react-query'
+ 
+-export type McpCapabilityMode = 'native' | 'fallback' | 'off'
+-
+-interface GatewayStatusResponse {
+-  capabilities?: {
+-    mcp?: boolean
+-    mcpFallback?: boolean
+-  }
+-}
++export type McpCapabilityMode = 'native' | 'fallback' | 'profiles' | 'off'
+ 
+ /**
+  * Phase 1.5 — read `/api/gateway-status` and reduce to one of:
+@@ -23,13 +16,10 @@ export function useMcpCapabilityMode(): {
+   const query = useQuery({
+     queryKey: ['gateway-status', 'mcp-mode'],
+     queryFn: async (): Promise<McpCapabilityMode> => {
+-      const res = await fetch('/api/gateway-status')
++      const res = await fetch('/api/mcp')
+       if (!res.ok) return 'off'
+-      const body = (await res.json()) as GatewayStatusResponse
+-      const caps = body.capabilities ?? {}
+-      if (caps.mcp) return 'native'
+-      if (caps.mcpFallback) return 'fallback'
+-      return 'off'
++      const body = (await res.json()) as { mode?: McpCapabilityMode }
++      return body.mode ?? 'off'
+     },
+     staleTime: 30_000,
+     refetchOnWindowFocus: false,
+diff --git a/src/screens/mcp/hooks/use-mcp-servers.ts b/src/screens/mcp/hooks/use-mcp-servers.ts
+index e4986ff..5dd2369 100644
+--- a/src/screens/mcp/hooks/use-mcp-servers.ts
++++ b/src/screens/mcp/hooks/use-mcp-servers.ts
+@@ -26,6 +26,7 @@ export function useMcpServers(params: UseMcpServersParams) {
+         servers: body.servers ?? [],
+         total: body.total ?? 0,
+         categories: body.categories ?? ['All'],
++        mode: body.mode,
+       }
+     },
+     staleTime: 30_000,
+diff --git a/src/screens/mcp/mcp-screen.tsx b/src/screens/mcp/mcp-screen.tsx
+index 99958b1..1a01e9c 100644
+--- a/src/screens/mcp/mcp-screen.tsx
++++ b/src/screens/mcp/mcp-screen.tsx
+@@ -31,6 +31,7 @@ export function McpScreen() {
+   const [sourcesOpen, setSourcesOpen] = useState(false)
+ 
+   const { mode: capabilityMode } = useMcpCapabilityMode()
++  const profileRegistryMode = capabilityMode === 'profiles'
+   // Marketplace tab uses useMcpHub instead; coerce to 'installed' so the
+   // server-list query stays valid but its results aren't rendered there.
+   const serverListTab = tab === 'marketplace' ? 'installed' : tab
+@@ -69,7 +70,7 @@ export function McpScreen() {
+                 exposed to Hermes Agent.
+               </p>
+             </div>
+-            <Button
++            {!profileRegistryMode ? <Button
+               variant="outline"
+               size="sm"
+               onClick={() => {
+@@ -78,7 +79,7 @@ export function McpScreen() {
+               }}
+             >
+               Add Server
+-            </Button>
++            </Button> : null}
+           </div>
+           {capabilityMode === 'fallback' ? (
+             <div
+@@ -89,6 +90,16 @@ export function McpScreen() {
+               Logs require the new hermes-agent /api/mcp endpoints.
+             </div>
+           ) : null}
++          {profileRegistryMode ? (
++            <div
++              role="status"
++              className="mt-3 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
++            >
++              Profile registry mode — servers are aggregated from authorized
++              Hermes profiles. The default profile remains unchanged and this
++              page is read-only.
++            </div>
++          ) : null}
+         </header>
+ 
+         <section className="rounded-2xl border border-primary-200 bg-primary-50/80 p-3 backdrop-blur-xl sm:p-4">
+@@ -101,9 +112,9 @@ export function McpScreen() {
+                 <TabsTab value="installed" className="min-w-[110px]">
+                   Installed
+                 </TabsTab>
+-                <TabsTab value="marketplace" className="min-w-[120px]">
++                {!profileRegistryMode ? <TabsTab value="marketplace" className="min-w-[120px]">
+                   Marketplace
+-                </TabsTab>
++                </TabsTab> : null}
+               </TabsList>
+ 
+               <input
+@@ -212,7 +223,12 @@ export function McpScreen() {
+         <footer className="flex items-center justify-between rounded-xl border border-primary-200 bg-primary-50/80 px-3 py-2.5 text-sm text-primary-500 tabular-nums">
+           <span>{totalLabel}</span>
+           <span className="text-xs">
+-            mode: {capabilityMode === 'fallback' ? 'config fallback' : 'native'}
++            mode:{' '}
++            {capabilityMode === 'fallback'
++              ? 'config fallback'
++              : capabilityMode === 'profiles'
++                ? 'profile registry'
++                : capabilityMode}
+           </span>
+         </footer>
+       </div>
+diff --git a/src/server/chat-work-tracking.test.ts b/src/server/chat-work-tracking.test.ts
+new file mode 100644
+index 0000000..55594df
+--- /dev/null
++++ b/src/server/chat-work-tracking.test.ts
+@@ -0,0 +1,56 @@
++import { describe, expect, it } from 'vitest'
++import {
++  buildChatWorkTitle,
++  isTrackableChatWork,
++  responseRequiresHumanApproval,
++} from './chat-work-tracking'
++
++describe('chat work tracking classification', () => {
++  it.each([
++    'Mets en place le suivi automatique des missions',
++    'Corrige ce bug de sécurité dans la plateforme puis exécute les tests et prépare un rollback.',
++    'Build the production application, verify the mobile layout, and create a deployment report.',
++    'Audite la stack Hermes complète et produis un rapport avec preuves, risques et patch proposé.',
++    'Crée une tâche Kanban pour la migration de la base de données.',
++  ])('tracks executable work: %s', (message) => {
++    expect(isTrackableChatWork(message)).toBe(true)
++  })
++
++  it.each([
++    'Est-ce que les tâches apparaissent dans Workspace ?',
++    'Pourquoi cette session est-elle lente ?',
++    'Comment fonctionne la mémoire ?',
++    'Bonjour',
++    'Merci',
++    'Écris un email de remerciement.',
++    'Crée un bref résumé de ce texte.',
++    'Teste cette phrase.',
++    'Donne-moi trois idées de titres.',
++  ])('does not track informational chat: %s', (message) => {
++    expect(isTrackableChatWork(message)).toBe(false)
++  })
++
++  it('creates a short stable task title', () => {
++    const title = buildChatWorkTitle(
++      'Crée un rapport très détaillé sur la configuration actuelle du projet et ajoute les recommandations prioritaires. Puis vérifie les résultats.',
++    )
++    expect(title.startsWith('Chat · Crée un rapport')).toBe(true)
++    expect(title.length).toBeLessThanOrEqual(103)
++  })
++
++  it.each([
++    'VALIDATION_HUMAINE_REQUISE: oui',
++    'Validation humaine requise : oui avant le redémarrage.',
++    'Awaiting your approval before deployment.',
++    'Je n’ai pas exécuté le changement : votre autorisation est nécessaire.',
++  ])('detects approval gates: %s', (response) => {
++    expect(responseRequiresHumanApproval(response)).toBe(true)
++  })
++
++  it.each([
++    'Validation humaine requise : non.',
++    'Le rapport est terminé et aucun changement critique n’a été appliqué.',
++  ])('does not invent approval gates: %s', (response) => {
++    expect(responseRequiresHumanApproval(response)).toBe(false)
++  })
++})
+diff --git a/src/server/chat-work-tracking.ts b/src/server/chat-work-tracking.ts
+new file mode 100644
+index 0000000..523cfec
+--- /dev/null
++++ b/src/server/chat-work-tracking.ts
+@@ -0,0 +1,312 @@
++import { randomUUID } from 'node:crypto'
++import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
++import os from 'node:os'
++import path from 'node:path'
++import { createKanbanCard, updateKanbanCard } from './kanban-backend'
++
++type TrackingStatus = 'running' | 'complete' | 'blocked' | 'interrupted'
++
++type TrackingIndex = {
++  version: 1
++  requests: Record<
++    string,
++    {
++      taskId: string
++      reportPath: string | null
++      createdAt: number
++    }
++  >
++}
++
++export type ChatWorkTracking = {
++  taskId: string
++  idempotencyKey: string
++  title: string
++  request: string
++  sessionKey: string
++  friendlyId: string
++  workspaceRoot: string | null
++  reportPath: string | null
++  createdAt: number
++}
++
++type StartChatWorkTrackingInput = {
++  message: string
++  sessionKey: string
++  friendlyId: string
++  idempotencyKey?: string | null
++  workspaceRoot?: string | null
++}
++
++type FinishChatWorkTrackingInput = {
++  status: Exclude<TrackingStatus, 'running'>
++  summary?: string | null
++  error?: string | null
++}
++
++const HERMES_HOME =
++  process.env.HERMES_HOME ??
++  process.env.CLAUDE_HOME ??
++  path.join(os.homedir(), '.hermes')
++const TRACKING_INDEX_PATH = path.join(HERMES_HOME, 'chat-work-tracking.json')
++const ACTION_VERBS =
++  /\b(cr[eé]e(?:r|z)?|fais|faire|effectue(?:r|z)?|r[eé]alise(?:r|z)?|d[eé]veloppe(?:r|z)?|corrige(?:r|z)?|analyse(?:r|z)?|audite(?:r|z)?|pr[eé]pare(?:r|z)?|r[eé]dige(?:r|z)?|impl[eé]mente(?:r|z)?|mets?\s+en\s+place|d[eé]ploie(?:r|z)?|modifie(?:r|z)?|construis|construire|lance(?:r|z)?|g[eé]n[eè]re(?:r|z)?|teste(?:r|z)?|v[eé]rifie(?:r|z)?|installe(?:r|z)?|configure(?:r|z)?|recherche(?:r|z)?|organise(?:r|z)?|create|build|implement|fix|analy[sz]e|audit|prepare|write|deploy|modify|launch|generate|test|verify|install|configure|research|organize|set\s+up)\b/i
++const WORK_NOUNS =
++  /\b(mission|projet|project|t[aâ]che|task|rapport|report|livrable|deliverable|fonctionnalit[eé]|feature|application|site|audit|analyse|migration|d[eé]ploiement|deployment)\b/i
++const PURE_QUESTION =
++  /^(est[- ]ce que|pourquoi|comment|qu(?:'|’)est[- ]ce que|quelle?s?\b|quel?s?\b|o[uù]\b|when\b|why\b|how\b|what\b|where\b|is\b|are\b|do\b|does\b|can you tell me\b)/i
++const IMPORTANT_SCOPE =
++  /\b(projet|project|plateforme|platform|production|prod|syst[eè]me|system|infrastructure|stack|s[eé]curit[eé]|security|d[eé]ploiement|deployment|migration|base de donn[eé]es|database|architecture|int[eé]gration|integration|automatisation|automation|automatique|automatic|orchestrat(?:eur|ion)|workflow|telegram|api|workspace|hermes|incident|audit)\b/i
++const DURABLE_OUTPUT =
++  /\b(patch|code|configuration|config|rapport complet|full report|plan d['’]ex[eé]cution|implementation plan|livrable|deliverable|documentation|runbook|tests?|backup|rollback|monitoring|surveillance|suivi|tracking)\b/i
++const HIGH_RISK_ACTION =
++  /\b(d[eé]ploie|deploy|installe|install|migre|migrate|red[eé]marre|restart|supprime|delete|configure|s[eé]curise|secure|corrige|fix|impl[eé]mente|implement|modifie|modify|publie|publish)\b/i
++const EXPLICIT_TRACKING =
++  /\b(cr[eé]e|ouvre|ajoute|enregistre|suis|track)\b.{0,50}\b(t[aâ]che|task|kanban|mission|projet|project)\b/i
++
++function normalizeText(value: string): string {
++  return value.replace(/\s+/g, ' ').trim()
++}
++
++export function isTrackableChatWork(message: string): boolean {
++  const text = normalizeText(message)
++  if (text.length < 20) return false
++  if (PURE_QUESTION.test(text)) return false
++  if (EXPLICIT_TRACKING.test(text)) return true
++
++  // Do not turn every imperative chat message into durable project state.
++  // Tracking is reserved for substantial work with project/system scope,
++  // a durable output, multiple requested actions, or elevated operational risk.
++  const actionCount = (text.match(new RegExp(ACTION_VERBS.source, 'gi')) ?? [])
++    .length
++  let score = 0
++  if (ACTION_VERBS.test(text)) score += 1
++  if (IMPORTANT_SCOPE.test(text)) score += 2
++  if (DURABLE_OUTPUT.test(text)) score += 1
++  if (HIGH_RISK_ACTION.test(text)) score += 2
++  if (WORK_NOUNS.test(text)) score += 1
++  if (actionCount >= 2) score += 1
++  if (text.length >= 220) score += 1
++  return score >= 4
++}
++
++export function buildChatWorkTitle(message: string): string {
++  const normalized = normalizeText(
++    message.replace(/```[\s\S]*?```/g, ' ').replace(/[#>*_`[\]()]/g, ' '),
++  )
++  const firstSentence = normalized.split(/(?<=[.!?])\s+/)[0] || normalized
++  const clipped =
++    firstSentence.length > 96
++      ? `${firstSentence.slice(0, 93).trimEnd()}...`
++      : firstSentence
++  return `Chat · ${clipped || 'Mission sans titre'}`
++}
++
++export function responseRequiresHumanApproval(response: string): boolean {
++  const text = normalizeText(response.replace(/_/g, ' '))
++  if (!text) return false
++  return (
++    /\bvalidation humaine requise\s*[:=-]?\s*(oui|yes)\b/i.test(text) ||
++    /\b(human approval|manual approval|approbation humaine)\s+(is\s+)?required\b/i.test(
++      text,
++    ) ||
++    /\b(en attente de|attendre|awaiting|pending)\s+(votre\s+|your\s+)?(validation|approbation|autorisation|approval)\b/i.test(
++      text,
++    ) ||
++    /\bje n['’]ai pas (ex[eé]cut[eé]|appliqu[eé]|d[eé]ploy[eé]|red[eé]marr[eé]).{0,120}\b(validation|approbation|autorisation)\b/i.test(
++      text,
++    )
++  )
++}
++
++function safeExcerpt(value: string | null | undefined, max = 2000): string {
++  const normalized = normalizeText(value ?? '')
++  if (!normalized) return ''
++  return normalized.length > max
++    ? `${normalized.slice(0, max - 3).trimEnd()}...`
++    : normalized
++}
++
++function trackingDescription(input: {
++  request: string
++  sessionKey: string
++  friendlyId: string
++  status: TrackingStatus
++  reportPath?: string | null
++  summary?: string | null
++  error?: string | null
++}): string {
++  return [
++    'Source: Workspace Chat',
++    `Statut de suivi: ${input.status}`,
++    `Session: ${input.sessionKey}`,
++    `Alias: ${input.friendlyId || input.sessionKey}`,
++    input.reportPath ? `Rapport: ${input.reportPath}` : null,
++    '',
++    'Demande:',
++    safeExcerpt(input.request, 4000),
++    input.summary ? ['', 'Résultat:', safeExcerpt(input.summary)] : null,
++    input.error ? ['', 'Blocage:', safeExcerpt(input.error)] : null,
++  ]
++    .flat()
++    .filter((line): line is string => typeof line === 'string')
++    .join('\n')
++}
++
++async function readIndex(): Promise<TrackingIndex> {
++  try {
++    const parsed = JSON.parse(
++      await readFile(TRACKING_INDEX_PATH, 'utf8'),
++    ) as Partial<TrackingIndex>
++    return {
++      version: 1,
++      requests:
++        parsed.requests && typeof parsed.requests === 'object'
++          ? parsed.requests
++          : {},
++    }
++  } catch {
++    return { version: 1, requests: {} }
++  }
++}
++
++async function writeIndex(index: TrackingIndex): Promise<void> {
++  await mkdir(path.dirname(TRACKING_INDEX_PATH), { recursive: true })
++  const tmp = `${TRACKING_INDEX_PATH}.${process.pid}.${randomUUID()}.tmp`
++  await writeFile(tmp, `${JSON.stringify(index, null, 2)}\n`, 'utf8')
++  await rename(tmp, TRACKING_INDEX_PATH)
++}
++
++function resolveReportPath(
++  workspaceRoot: string | null,
++  taskId: string,
++): { absolute: string; relative: string } | null {
++  if (!workspaceRoot || !path.isAbsolute(workspaceRoot)) return null
++  const relative = path.join('reports', 'chat-missions', `${taskId}.md`)
++  return { absolute: path.join(workspaceRoot, relative), relative }
++}
++
++async function writeReport(
++  tracking: ChatWorkTracking,
++  status: TrackingStatus,
++  summary?: string | null,
++  error?: string | null,
++): Promise<void> {
++  if (!tracking.workspaceRoot) return
++  const resolved = resolveReportPath(tracking.workspaceRoot, tracking.taskId)
++  if (!resolved) return
++  await mkdir(path.dirname(resolved.absolute), { recursive: true })
++  const body = [
++    `# ${tracking.title.replace(/^Chat · /, '')}`,
++    '',
++    `- Tâche : \`${tracking.taskId}\``,
++    `- Source : Workspace Chat`,
++    `- Session : \`${tracking.sessionKey}\``,
++    `- Statut : \`${status}\``,
++    `- Créée : ${new Date(tracking.createdAt).toISOString()}`,
++    `- Mise à jour : ${new Date().toISOString()}`,
++    '',
++    '## Demande',
++    '',
++    tracking.request.trim(),
++    summary ? ['', '## Résultat', '', safeExcerpt(summary, 8000)] : [],
++    error ? ['', '## Blocage', '', safeExcerpt(error, 4000)] : [],
++    '',
++  ]
++    .flat()
++    .join('\n')
++  await writeFile(resolved.absolute, body, 'utf8')
++}
++
++export async function startChatWorkTracking(
++  input: StartChatWorkTrackingInput,
++): Promise<ChatWorkTracking | null> {
++  if (!isTrackableChatWork(input.message)) return null
++
++  const request = input.message.trim()
++  const idempotencyKey =
++    input.idempotencyKey?.trim() || `chat-${input.sessionKey}-${randomUUID()}`
++  const index = await readIndex()
++  const existing = index.requests[idempotencyKey]
++  if (existing) {
++    return {
++      taskId: existing.taskId,
++      idempotencyKey,
++      title: buildChatWorkTitle(request),
++      request,
++      sessionKey: input.sessionKey,
++      friendlyId: input.friendlyId,
++      workspaceRoot: input.workspaceRoot?.trim() || null,
++      reportPath: existing.reportPath,
++      createdAt: existing.createdAt,
++    }
++  }
++
++  const title = buildChatWorkTitle(request)
++  const createdAt = Date.now()
++  const card = await createKanbanCard({
++    title,
++    spec: trackingDescription({
++      request,
++      sessionKey: input.sessionKey,
++      friendlyId: input.friendlyId,
++      status: 'running',
++    }),
++    status: 'running',
++    assignedWorker: null,
++    createdBy: 'workspace-chat',
++    idempotencyKey: `workspace-chat:${idempotencyKey}`,
++    tags: ['workspace-chat'],
++  })
++  const report = resolveReportPath(input.workspaceRoot?.trim() || null, card.id)
++  const tracking: ChatWorkTracking = {
++    taskId: card.id,
++    idempotencyKey,
++    title,
++    request,
++    sessionKey: input.sessionKey,
++    friendlyId: input.friendlyId,
++    workspaceRoot: input.workspaceRoot?.trim() || null,
++    reportPath: report?.relative ?? null,
++    createdAt,
++  }
++
++  index.requests[idempotencyKey] = {
++    taskId: card.id,
++    reportPath: tracking.reportPath,
++    createdAt,
++  }
++  await writeIndex(index)
++  await updateKanbanCard(card.id, {
++    spec: trackingDescription({
++      request,
++      sessionKey: input.sessionKey,
++      friendlyId: input.friendlyId,
++      status: 'running',
++      reportPath: tracking.reportPath,
++    }),
++  })
++  await writeReport(tracking, 'running')
++  return tracking
++}
++
++export async function finishChatWorkTracking(
++  tracking: ChatWorkTracking | null,
++  input: FinishChatWorkTrackingInput,
++): Promise<void> {
++  if (!tracking) return
++  const column = input.status === 'complete' ? 'done' : 'blocked'
++  await updateKanbanCard(tracking.taskId, {
++    status: column,
++    spec: trackingDescription({
++      request: tracking.request,
++      sessionKey: tracking.sessionKey,
++      friendlyId: tracking.friendlyId,
++      status: input.status,
++      reportPath: tracking.reportPath,
++      summary: input.summary,
++      error: input.error,
++    }),
++  })
++  await writeReport(tracking, input.status, input.summary, input.error)
++}
+diff --git a/src/server/claude-tasks-backend.ts b/src/server/claude-tasks-backend.ts
+index 5d62b6e..9e96709 100644
+--- a/src/server/claude-tasks-backend.ts
++++ b/src/server/claude-tasks-backend.ts
+@@ -93,6 +93,7 @@ function mapCardToTask(card: {
+   createdBy: string
+   createdAt: number
+   updatedAt: number
++  tags?: Array<string>
+ }): ClaudeTaskRecord {
+   return {
+     id: card.id,
+@@ -101,7 +102,7 @@ function mapCardToTask(card: {
+     column: mapKanbanStatusToTaskColumn(card.status),
+     priority: 'medium',
+     assignee: card.assignedWorker,
+-    tags: [],
++    tags: card.tags ?? [],
+     due_date: null,
+     position: card.updatedAt,
+     created_by: card.createdBy,
+diff --git a/src/server/context-usage.ts b/src/server/context-usage.ts
+index 39d17c6..a2783a3 100644
+--- a/src/server/context-usage.ts
++++ b/src/server/context-usage.ts
+@@ -52,6 +52,8 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+ }
+ 
+ const CHARS_PER_TOKEN = 3.5
++const RUNTIME_MISS_CACHE_MS = 60_000
++const runtimeMissCache = new Map<string, number>()
+ 
+ type MessageLike = {
+   content?: unknown
+@@ -220,6 +222,8 @@ async function readGatewayRuntimeSnapshot(
+ ): Promise<ContextUsageSnapshot | null> {
+   const sid = sessionId.trim()
+   if (!sid) return null
++  const retryAfter = runtimeMissCache.get(sid) ?? 0
++  if (retryAfter > Date.now()) return null
+   try {
+     const res = await fetch(
+       `${CLAUDE_API}/api/sessions/${encodeURIComponent(sid)}/runtime`,
+@@ -228,7 +232,13 @@ async function readGatewayRuntimeSnapshot(
+         signal: AbortSignal.timeout(2500),
+       },
+     )
+-    if (!res.ok) return null
++    if (!res.ok) {
++      if (res.status === 404 || res.status === 405) {
++        runtimeMissCache.set(sid, Date.now() + RUNTIME_MISS_CACHE_MS)
++      }
++      return null
++    }
++    runtimeMissCache.delete(sid)
+     const data = (await res.json()) as {
+       model?: unknown
+       context_tokens?: unknown
+diff --git a/src/server/hermes-config-route.ts b/src/server/hermes-config-route.ts
+index 7113b8e..389bf78 100644
+--- a/src/server/hermes-config-route.ts
++++ b/src/server/hermes-config-route.ts
+@@ -24,8 +24,6 @@ import {
+   getDiscoveryStatus,
+ } from './local-provider-discovery'
+ 
+-type AuthResult = Response | true
+-
+ const ACTION_MESSAGES: Record<string, string> = {
+   'set-default-model': 'Default model updated.',
+   'set-api-key': 'API key saved.',
+@@ -71,9 +69,10 @@ const LegacyPatchSchema = z.object({
+   env: z.record(z.string(), z.union([z.string(), z.null()])).optional(),
+ })
+ 
+-async function authorize(request: Request): Promise<AuthResult> {
+-  const result = isAuthenticated(request) as AuthResult
+-  if (result !== true) return result
++async function authorize(request: Request): Promise<Response | true> {
++  if (!isAuthenticated(request)) {
++    return Response.json({ error: 'Unauthorized' }, { status: 401 })
++  }
+   await ensureGatewayProbed()
+   return true
+ }
+diff --git a/src/server/kanban-backend.ts b/src/server/kanban-backend.ts
+index c150212..dbd9344 100644
+--- a/src/server/kanban-backend.ts
++++ b/src/server/kanban-backend.ts
+@@ -118,6 +118,7 @@ function dashboardTaskToCard(task: DashboardKanbanTask): SwarmKanbanCard {
+     createdBy: task.created_by ?? 'hermes-kanban',
+     createdAt,
+     updatedAt,
++    tags: task.tenant ? [`project:${task.tenant}`] : [],
+   }
+ }
+ 
+diff --git a/src/server/kanban-dashboard-proxy.ts b/src/server/kanban-dashboard-proxy.ts
+index d908656..2ebd547 100644
+--- a/src/server/kanban-dashboard-proxy.ts
++++ b/src/server/kanban-dashboard-proxy.ts
+@@ -42,6 +42,7 @@ export type DashboardKanbanTask = {
+   created_at?: number | null
+   started_at?: number | null
+   completed_at?: number | null
++  tenant?: string | null
+   workspace_kind?: string | null
+   workspace_path?: string | null
+ }
+diff --git a/src/server/profile-mcp-registry.ts b/src/server/profile-mcp-registry.ts
+new file mode 100644
+index 0000000..831595a
+--- /dev/null
++++ b/src/server/profile-mcp-registry.ts
+@@ -0,0 +1,84 @@
++import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
++import { join } from 'node:path'
++import YAML from 'yaml'
++import { getProfilesDir } from './claude-paths'
++import {
++  maskSecretsInPlace,
++  normalizeMcpServerFromConfig,
++} from './mcp-normalize'
++import type { McpServer } from '../types/mcp'
++
++const PROFILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
++
++type ProfileMcpServer = McpServer & {
++  profiles: Array<string>
++  readOnly: true
++}
++
++function readProfileServers(profile: string): Array<McpServer> {
++  const configPath = join(getProfilesDir(), profile, 'config.yaml')
++  if (!existsSync(configPath)) return []
++  try {
++    const config = YAML.parse(readFileSync(configPath, 'utf8')) as Record<
++      string,
++      unknown
++    >
++    const raw = config?.mcp_servers
++    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return []
++    const servers: Array<McpServer> = []
++    for (const [name, value] of Object.entries(raw)) {
++      const normalized = normalizeMcpServerFromConfig(name, value)
++      if (normalized) servers.push(maskSecretsInPlace(normalized))
++    }
++    return servers
++  } catch {
++    return []
++  }
++}
++
++export function listProfileMcpServers(): Array<ProfileMcpServer> {
++  const profilesDir = getProfilesDir()
++  if (!existsSync(profilesDir)) return []
++
++  const grouped = new Map<
++    string,
++    { server: McpServer; profiles: Array<string> }
++  >()
++  for (const profile of readdirSync(profilesDir).sort()) {
++    if (!PROFILE_NAME_RE.test(profile)) continue
++    const home = join(profilesDir, profile)
++    try {
++      if (!statSync(home).isDirectory()) continue
++    } catch {
++      continue
++    }
++    for (const server of readProfileServers(profile)) {
++      const key = JSON.stringify({
++        name: server.name,
++        transportType: server.transportType,
++        url: server.url ?? '',
++        command: server.command ?? '',
++        args: server.args,
++      })
++      const current = grouped.get(key)
++      if (current) {
++        current.profiles.push(profile)
++      } else {
++        grouped.set(key, { server, profiles: [profile] })
++      }
++    }
++  }
++
++  return [...grouped.values()]
++    .map(({ server, profiles }) => ({
++      ...server,
++      id: `profiles:${server.id}`,
++      profiles,
++      readOnly: true as const,
++    }))
++    .sort((a, b) => a.name.localeCompare(b.name))
++}
++
++export function hasProfileMcpServers(): boolean {
++  return listProfileMcpServers().length > 0
++}
+diff --git a/src/server/profiles-browser.ts b/src/server/profiles-browser.ts
+index 841173a..f516a88 100644
+--- a/src/server/profiles-browser.ts
++++ b/src/server/profiles-browser.ts
+@@ -32,6 +32,13 @@ export type ProfileDetail = {
+ }
+ 
+ const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
++const PROFILE_LIST_CACHE_MS = 2_000
++let profileListCache:
++  | {
++      expiresAt: number
++      value: { profiles: Array<ProfileSummary>; activeProfile: string }
++    }
++  | undefined
+ const TEXT_REWRITE_EXTENSIONS = new Set([
+   '.md',
+   '.txt',
+@@ -282,11 +289,27 @@ export async function listProfilesWithFallback(): Promise<{
+   profiles: Array<ProfileSummary>
+   activeProfile: string
+ }> {
+-  // Try dashboard first for split-host deployments
++  // In the container deployment HERMES_HOME is a shared volume, so local
++  // profile reads are authoritative and much faster. Querying the dashboard
++  // first added roughly two seconds to every profile picker/page load.
++  if (fs.existsSync(getProfilesRoot())) {
++    const now = Date.now()
++    if (profileListCache && profileListCache.expiresAt > now) {
++      return profileListCache.value
++    }
++    const value = {
++      profiles: listProfiles(),
++      activeProfile: getActiveProfileName(),
++    }
++    profileListCache = { expiresAt: now + PROFILE_LIST_CACHE_MS, value }
++    return value
++  }
++
++  // Filesystem is absent: use the dashboard for true split-host deployments.
+   const dashboardResult = await fetchDashboardProfiles()
+   if (dashboardResult) return dashboardResult
+ 
+-  // Fall back to filesystem (colocated deployment)
++  // Preserve the historical empty/local fallback.
+   return {
+     profiles: listProfiles(),
+     activeProfile: getActiveProfileName(),
+diff --git a/src/server/run-store.test.ts b/src/server/run-store.test.ts
+index 1b55d0e..5c06874 100644
+--- a/src/server/run-store.test.ts
++++ b/src/server/run-store.test.ts
+@@ -45,4 +45,24 @@ describe('run-store persistence', () => {
+       events.map((event) => event.text).sort(),
+     )
+   })
++
++  it('returns the latest completed run for UI recovery', async () => {
++    const {
++      appendRunText,
++      createPersistedRun,
++      getLatestRunForSession,
++      markRunStatus,
++    } = await import('./run-store')
++
++    await createPersistedRun({ runId: 'run-1', sessionKey: 'session-1' })
++    await appendRunText('session-1', 'run-1', 'Recovered response')
++    await markRunStatus('session-1', 'run-1', 'complete')
++
++    const latest = await getLatestRunForSession('session-1')
++    expect(latest).toMatchObject({
++      runId: 'run-1',
++      status: 'complete',
++      assistantText: 'Recovered response',
++    })
++  })
+ })
+diff --git a/src/server/run-store.ts b/src/server/run-store.ts
+index 71a0c1f..a1a5503 100644
+--- a/src/server/run-store.ts
++++ b/src/server/run-store.ts
+@@ -250,6 +250,17 @@ export async function getActiveRunForSession(
+   }
+ }
+ 
++export async function getLatestRunForSession(
++  sessionKey: string,
++): Promise<PersistedRunState | null> {
++  try {
++    const runs = await readRunsInDir(sessionDir(sessionKey))
++    return runs.sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null
++  } catch {
++    return null
++  }
++}
++
+ // Lists every non-complete/error run across all sessions, regardless of
+ // staleness. Powers the "Background runs" panel so users can inspect and
+ // abandon orphans that the staleness filter hides from the chat UI.
+diff --git a/src/types/mcp.ts b/src/types/mcp.ts
+index f57ae29..19a519b 100644
+--- a/src/types/mcp.ts
++++ b/src/types/mcp.ts
+@@ -42,6 +42,10 @@ export interface McpServer {
+   source: McpSource
+   /** Populated when a bearer/oauth/header auth value is an env-reference like ${VAR_NAME}. */
+   authEnvRef?: string
++  /** Profiles that expose this server when Workspace is in profile-registry mode. */
++  profiles?: Array<string>
++  /** True when the server is inherited from profile configs and is display-only here. */
++  readOnly?: boolean
+ }
+ 
+ export interface McpTestResult {
+@@ -56,6 +60,7 @@ export interface McpListResponse {
+   servers: Array<McpServer>
+   total: number
+   categories: Array<string>
++  mode?: 'native' | 'fallback' | 'profiles' | 'off'
+ }
+ 
+ /**
