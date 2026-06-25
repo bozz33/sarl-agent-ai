@@ -79,6 +79,11 @@ def desired(config: dict, profile_name: str) -> dict:
     config.pop("provider", None)
     config.pop("base_url", None)
     config.setdefault("checkpoints", {})["enabled"] = True
+    # Verrou natif d'auto-amelioration: toute ecriture de skill par un agent est
+    # mise en attente (~/.hermes/pending/skills/) et promue via /skills approve.
+    # L'apprentissage (memoire, propositions) reste libre; seule la skill ACTIVE
+    # exige validation. memory.write_approval reste false (faits non sensibles).
+    config.setdefault("skills", {})["write_approval"] = True
     config["hooks"] = {"pre_tool_call": [HOOK.copy()]}
     config.setdefault("mcp_servers", {})["sarl_project_memory"] = MCP.copy()
     config.setdefault("providers", {})["groq"] = GROQ_PROVIDER.copy()
