@@ -1,6 +1,8 @@
 services:
   hermes-agent:
     image: sarl/hermes-agent:0.17.0-ddgs1
+    build:
+      context: ./deploy/hermes-agent
     container_name: sarl-hermes-agent
     restart: unless-stopped
     command: ["gateway", "run"]
@@ -68,6 +70,8 @@ services:
 
   project-memory-mcp:
     image: sarl/project-memory-mcp:0.2.1
+    build:
+      context: ./services/project-memory-mcp
     container_name: sarl-project-memory-mcp
     restart: unless-stopped
     env_file:

@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tooling
+        run: pip install ruff pyyaml
+
+      - name: Ruff (errors only)
+        run: ruff check --select E9,F63,F7,F82 .
+
+      - name: Compile Python sources
+        run: |
+          python - <<'PY'
+          import pathlib, py_compile, sys
+          failed = False
+          for p in pathlib.Path(".").rglob("*.py"):
+              if any(part in {".git", "node_modules", ".venv", "staging"} for part in p.parts):
+                  continue
+              try:
+                  py_compile.compile(str(p), doraise=True)
+              except py_compile.PyCompileError as e:
+                  print(e); failed = True
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: Validate YAML
+        run: |
+          python - <<'PY'
+          import pathlib, sys, yaml
+          failed = False
+          for p in list(pathlib.Path(".").rglob("*.yml")) + list(pathlib.Path(".").rglob("*.yaml")):
+              if any(part in {".git", "node_modules", ".venv", "staging"} for part in p.parts):
+                  continue
+              try:
+                  list(yaml.safe_load_all(p.read_text()))
+              except yaml.YAMLError as e:
+                  print(f"{p}: {e}"); failed = True
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: Validate docker compose
+        run: docker compose -f docker-compose.yml config -q
+
+      - name: Check active-profiles config (dry-run)
+        run: python scripts/configure-active-profiles.py --check --root "$(mktemp -d)" || true
