@@ -38,7 +38,7 @@ workers:
     name: SARL Orchestrator
     role: Orchestrator
     specialty: Cerveau central unique pour decision, delegation, Kanban, Swarm, validation humaine et rapport final.
-    model: openai/gpt-4.1
+    model: anthropic/claude-sonnet-4.6
     mission: Comprendre les missions, choisir module/agents, classifier le risque, creer les taches Kanban, deleguer et superviser sans executer les actions critiques.
     skills:
       - sarl-agent-ai-operating-contract
@@ -171,7 +171,7 @@ workers:
     name: Code Reviewer Critical
     role: Critical Reviewer
     specialty: Revue critique securite, architecture, production, migrations et actions sensibles.
-    model: openai/gpt-4.1
+    model: deepseek/deepseek-reasoner
     mission: Controler les changements critiques avant validation humaine et merge/deploiement.
     skills:
       - sarl-agent-ai-operating-contract

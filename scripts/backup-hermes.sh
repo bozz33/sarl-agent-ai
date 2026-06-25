@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/root/CascadeProjects/SARL-agent-ai"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 DEST="$ROOT/backups/hermes/$STAMP"
 CONSISTENT=false

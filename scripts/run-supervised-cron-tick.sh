@@ -4,7 +4,7 @@ set -euo pipefail
 LOCK_FILE="/run/lock/sarl-agent-ai-cron-tick.lock"
 HERMES="/opt/hermes/.venv/bin/hermes"
 CONTAINER="sarl-hermes-agent"
-ROOT="/root/CascadeProjects/SARL-agent-ai"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0

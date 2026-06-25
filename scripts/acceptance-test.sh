@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/root/CascadeProjects/SARL-agent-ai"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERMES="/opt/hermes/.venv/bin/hermes"
 ACTIVE_PROFILES=(
   sarl-router
@@ -21,6 +21,8 @@ ACTIVE_PROFILES=(
   support-agent
   bureau-etudes-agent
   designer-3d-agent
+  cpanel-watch-agent
+  security-audit-agent
 )
 
 [[ "$EUID" -eq 0 ]] || {

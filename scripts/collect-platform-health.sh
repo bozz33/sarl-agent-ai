@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/root/CascadeProjects/SARL-agent-ai"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPORT_DIR="$ROOT/runtime-observability"
 REPORT="$REPORT_DIR/latest.txt"
 
