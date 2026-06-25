@@ -4,43 +4,26 @@ Stack Hermes Agent + Hermes Workspace, multi-projets et multi-agents.
 
 ## Etat
 
-- Hermes Agent et Workspace en Docker Compose.
-- Aucun projet ni worker lance automatiquement.
-- Dossier projets vide monte sous `/workspace`.
-- Skills custom montes en lecture seule.
-- Cinq profiles SARL de base configures et testes, arretes par defaut.
-- Board Kanban interne et Swarm minimal quatre profils valides.
-- PostgreSQL/pgvector et recherche hybride lexicale/semantique actifs.
-- MCP memoire 0.2.0 interne, avec pool PostgreSQL partage, embeddings Gemini
-  768D et connexion aux dix-sept profils.
-- Hook securite, checkpoints et MCP generalises aux dix-sept profils.
-- Helper worktree, rollback et restauration isolee des backups valides.
-- Sandbox Docker dedie actif avec image Python/Node prechargee; connexion par
-  socket Unix prive, aucun port daemon et aucun socket Docker hote expose.
-- Six profils avances economiques crees et testes, tous arretes.
-- Quatre profils metier crees et testes, sans canal externe.
-- Routeur valide 10/10; dix-sept profils valides par appel modele reel.
-- Dix-sept profils sont maintenant configurables; les deux profils premium
-  utilisent un mode provisoire DeepSeek tant que leurs credentials cibles sont
-  absents.
-- Crons hebdomadaires governor/stack-steward actifs via timer systemd, sans
-  worker profile permanent.
-- Workspace utilise le commit officiel `d04e1f3` du 6 juin 2026 avec gzip,
-  cache des assets immuables et cache court de la liste des profils. Un
-  janitor elimine les watchers PTY de logs dupliques.
-- Profils interactifs rapides sur Gemini 3.1 Flash Lite; fallbacks limites et
-  timeouts reduits.
-- Claude/Codex natifs et Tailscale restent conditionnes par une
-  authentification externe; aucun credential n'est invente.
-- OpenRouter est retire de la configuration Swarm active.
-- `sarl-orchestrator` devient le cerveau central unique sur GPT/Claude.
-- Codex est reserve au code avance via `codex-builder`.
-- Opus est reserve aux analyses exceptionnelles avec validation humaine.
-- Les domaines metier sont representes par des skills de module, pas par des orchestrateurs permanents.
-- Telegram reste une inbox intelligente: classification, Kanban, triage, dispatch controle.
+- Trois services Docker Compose : `hermes-agent` (0.17.0), `hermes-workspace`
+  et `project-memory-mcp` (0.2.1), plus un sandbox Docker-in-Docker isole.
+- 19 profils Hermes configures (18 workers Swarm + `sarl-orchestrator-critical`),
+  19 SOUL versionnes dans `profiles/`. Voir `docs/ROSTER.md`.
+- `sarl-orchestrator` est le cerveau central unique ; les domaines metier sont
+  des skills de module, pas des orchestrateurs permanents.
+- Kanban durable + Swarm pour les missions complexes ; Governor independant.
+- MCP memoire 0.2.1 interne : PostgreSQL/pgvector, embeddings Gemini 768D,
+  recherche hybride lexicale/semantique, allowlist `project_id`.
+- Securite : hook `pre_tool_call` (policy-guard), checkpoints, redaction des logs,
+  secrets hors Git, validation humaine des actions critiques.
+- Sandbox DinD : socket Unix prive, reseau interne non routable, aucun port
+  daemon expose. Tous les services lies a `127.0.0.1`.
+- Crons hebdomadaires governor/stack-steward via timers systemd.
+- Telegram = inbox intelligente (classification, Kanban, triage, dispatch controle).
 
 Documentation :
 
+- `docs/ROSTER.md` — alignement swarm / profils / SOUL
+- `docs/BUILD.md` — reconstruction des images et reprise (DR)
 - `docs/SARL-Agent-AI-document-complet-v1.3.md`
 - `docs/PHASE2-IMPLEMENTATION.md`
 - `ARCHITECTURE.md`
@@ -107,3 +90,7 @@ sudo ./scripts/backup-hermes.sh --consistent
 ```
 
 Ajouter `--with-images` pour une sauvegarde autonome des images Docker.
+
+## Licence
+
+MIT — voir `LICENSE`.

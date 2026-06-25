@@ -33,9 +33,9 @@ docker inspect sarl-hermes-agent sarl-hermes-workspace \
   sarl-project-memory-mcp sarl-sandbox-docker \
   > "$DEST/metadata/containers-inspect.json"
 docker image inspect \
-  sarl/hermes-agent:uid10010-oauth1 \
-  sarl/hermes-workspace:d04e1f3-sarl4 \
-  sarl/project-memory-mcp:0.2.0 \
+  sarl/hermes-agent:0.17.0-ddgs1 \
+  sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse \
+  sarl/project-memory-mcp:0.2.1 \
   docker:27-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce \
   > "$DEST/metadata/images-inspect.json"
 docker compose logs --no-color --timestamps hermes-agent \
@@ -84,11 +84,11 @@ trap - EXIT
 
 if [[ "$WITH_IMAGES" == true ]]; then
   docker save -o "$DEST/images/hermes-agent-image.tar" \
-    sarl/hermes-agent:uid10010-oauth1
+    sarl/hermes-agent:0.17.0-ddgs1
   docker save -o "$DEST/images/hermes-workspace-image.tar" \
-    sarl/hermes-workspace:d04e1f3-sarl4
+    sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse
   docker save -o "$DEST/images/project-memory-mcp-image.tar" \
-    sarl/project-memory-mcp:0.2.0
+    sarl/project-memory-mcp:0.2.1
   docker save -o "$DEST/images/sandbox-docker-image.tar" \
     docker:27-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce
   docker save -o "$DEST/images/sandbox-runtime-image.tar" \

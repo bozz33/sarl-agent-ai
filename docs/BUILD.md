@@ -22,15 +22,23 @@ réutilise l'image taguée existante ; ajouter `--build` pour reconstruire.
 
 ### `sarl/hermes-workspace:d04e1f3-sarl13-no-global-sse`
 Build custom de l'upstream `outsourc-e/hermes-workspace` (commit `d04e1f3`) avec
-patches SARL (suppression du SSE global, suivi borné, etc.). Ni le Dockerfile ni
-le jeu de patches ne sont versionnés ici.
+patches SARL (suppression du SSE global, suivi borné, etc.). L'image embarque
+uniquement le build (`/app/dist`, `server-entry.js`), **pas les sources** : on ne
+peut donc pas régénérer le jeu de patches depuis le conteneur, et l'image n'est
+pas publiée dans un registre (pas de digest distant).
 
-**Risque** : perte de l'image = pas de reconstruction possible sans refaire les
-patches à la main.
+**Reprise (DR) — disponible** : `scripts/backup-hermes.sh --with-images` exporte
+les images en `.tar` sous `backups/<horodatage>/images/` (tags réels de la stack).
+C'est le chemin de survie si le VPS meurt. Restauration : `docker load -i <file.tar>`.
 
-**Action recommandée** : versionner le jeu de patches (diff vs `d04e1f3`) sous
-`deploy/hermes-workspace/` + un Dockerfile, OU figer une image publiée dans un
-registre. Voir aussi `docs/ROSTER.md` pour la reproductibilité globale.
+```bash
+sudo ./scripts/backup-hermes.sh --consistent --with-images
+docker load -i backups/<horodatage>/images/hermes-workspace-image.tar
+```
+
+**À faire (source-repro)** : pour rendre l'image reconstructible depuis le source,
+versionner le diff vs upstream `d04e1f3` sous `deploy/hermes-workspace/` + un
+Dockerfile. Tant que ce n'est pas fait, la sauvegarde d'image est l'unique secours.
 
 ## Sandbox
 
