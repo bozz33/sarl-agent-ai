@@ -100,7 +100,7 @@ def main() -> int:
     parser.add_argument("--max-email", type=int, default=15)
     parser.add_argument("--max-events", type=int, default=15)
     parser.add_argument("--days", type=int, default=7)
-    parser.add_argument("--text", action="store_true", help="Human-readable digest")
+    parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
     args = parser.parse_args()
 
     digest = {
@@ -109,7 +109,7 @@ def main() -> int:
         "calendar_upcoming": upcoming_events(args.days, args.max_events),
     }
 
-    print(render_text(digest) if args.text else json.dumps(digest, ensure_ascii=False, indent=2))
+    print(json.dumps(digest, ensure_ascii=False, indent=2) if args.json else render_text(digest))
     return 0
 
 
