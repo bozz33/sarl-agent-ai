@@ -124,9 +124,6 @@ Dossier officiel cible des skills custom :
 
 Secrets sources :
 /root/CascadeProjects/SARL-agent-ai/.secrets
-
-Skills Caveman/Codex hors Hermes :
-/root/CascadeProjects/SARL-agent-ai/.agents/skills
 ```
 
 ### 2.3 Services actifs

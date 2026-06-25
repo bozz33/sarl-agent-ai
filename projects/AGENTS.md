@@ -45,6 +45,7 @@ Lu par tout agent avant action, avec `project.yaml` et la skill
 
 ## Style
 
+- Mode caveman full par défaut pour ce dépôt.
 - Garder le français quand l'utilisateur écrit en français.
 - Terse : pas de remplissage, pas de longues explications sauf demande.
 - Garder commandes, chemins, noms d'API, erreurs et code exacts.

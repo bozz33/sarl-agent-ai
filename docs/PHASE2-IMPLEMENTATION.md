@@ -50,7 +50,6 @@ Chaque palier doit passer :
 |---|---|---|
 | Backup pre-phase 2 | Termine | Archives projet, volumes, images, PostgreSQL et SHA-256 valides |
 | Runbook rollback | Prepare | Script cree, restauration destructive non executee |
-| Caveman | Termine | Installe dans `.agents/skills` |
 | Arborescence phase 2 | Termine | `skills`, `services`, `scripts`, `reports`, `staging`, `backups`, `docs` |
 | Dossier projets | Termine | `projects/` monte sur `/workspace`, actuellement vide |
 | Bind mount projets | Termine | Agent et Workspace voient `/workspace` |

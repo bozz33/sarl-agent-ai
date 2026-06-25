@@ -60,7 +60,6 @@ Fichier d'installation :
 | Futur stockage recommande des projets | `/root/CascadeProjects/SARL-agent-ai/projects` |
 | Skills Hermes actuels | `/home/workspace/.hermes/skills` dans Workspace, `/opt/data/skills` dans Agent |
 | Futur stockage recommande des skills custom | `/root/CascadeProjects/SARL-agent-ai/skills/custom` |
-| Skills Caveman de Codex, hors Hermes | `/root/CascadeProjects/SARL-agent-ai/.agents/skills` |
 
 Les dossiers cibles `projects` et `skills/custom` sont les emplacements
 recommandes pour la prochaine etape. Ils ne sont pas encore confirmes,
@@ -319,13 +318,6 @@ Ce dossier pourra etre monte dans le conteneur et declare dans :
 skills:
   external_dirs:
     - /opt/custom-skills
-```
-
-Le dossier suivant contient Caveman pour Codex et ne doit pas etre confondu
-avec les skills Hermes :
-
-```text
-/root/CascadeProjects/SARL-agent-ai/.agents/skills
 ```
 
 ## 3. Services deja actifs

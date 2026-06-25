@@ -19,3 +19,13 @@ projects/*/worktrees/
 projects/*/memory/
 reports/costs/*.md
 staging/agent-generated-patches/
+
+# Runtime state & vendored upstream (not source)
+workspace-runtime/
+staging/hermes-workspace-upstream-20260619/
+skills-lock.json
+PR-BODY.md
+
+# Drifting runtime snapshots
+reports/platform-health/latest.txt
+runtime-observability/latest.txt
