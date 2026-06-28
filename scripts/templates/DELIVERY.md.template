@@ -1,0 +1,33 @@
+# DELIVERY.md
+
+Cadre de livraison contrôlée pour `__PROJECT_NAME__`.
+
+## Environnements
+
+- local
+- staging si disponible
+- production
+
+## Déploiement
+
+Aucun déploiement, merge protégé, migration, suppression ou changement
+production sans validation humaine explicite.
+
+## Checklist avant livraison
+
+- Contexte projet lu.
+- Diff compris et limité.
+- Checkpoint, branche ou worktree présent.
+- Tests OK ou limites documentées.
+- Lint/typecheck/build OK lorsque disponibles.
+- E2E OK si interface utilisateur.
+- Review standard OK.
+- Review critique OK si sensible.
+- Backup ou rollback documenté.
+- Rapport final produit.
+- Validation humaine obtenue pour merge/deploy/action critique.
+
+## Rollback
+
+Documenter la procédure de retour arrière, les données à sauvegarder, les
+risques résiduels et le point de validation humaine.
