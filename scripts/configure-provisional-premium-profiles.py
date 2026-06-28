@@ -16,6 +16,7 @@ import yaml
 
 
 ROOT = Path("/opt/data/profiles")
+SANDBOX_RUNTIME_IMAGE = "sarl/sandbox-runtime:python3.11-nodejs20-playwright"
 HOOK = {
     "matcher": "terminal|execute_code|write_file|patch",
     "command": "/opt/sarl-hooks/sarl-policy-guard.py",
@@ -52,9 +53,10 @@ def configure(
     config["agent"]["gateway_timeout_warning"] = 120
     if docker_backend:
         config.setdefault("terminal", {})["backend"] = "docker"
-        config["terminal"]["docker_image"] = (
-            "sha256:d14ae8d7fcee933e82c9f62eded621110f227bc96363ca5449d36897af7bea1c"
-        )
+        config["terminal"]["docker_image"] = SANDBOX_RUNTIME_IMAGE
+        config["terminal"]["singularity_image"] = f"docker://{SANDBOX_RUNTIME_IMAGE}"
+        config["terminal"]["modal_image"] = SANDBOX_RUNTIME_IMAGE
+        config["terminal"]["daytona_image"] = SANDBOX_RUNTIME_IMAGE
         config["terminal"]["docker_run_as_host_user"] = True
     else:
         config.setdefault("terminal", {})["backend"] = "local"
