@@ -1,0 +1,26 @@
+# QUALITY.md
+
+Standard qualité obligatoire pour `__PROJECT_NAME__`.
+
+## Gates obligatoires
+
+- Tests unitaires ou smoke test ciblé.
+- Lint lorsque disponible.
+- Format check lorsque disponible.
+- Typecheck lorsque disponible.
+- Build ou validation équivalente.
+- E2E Playwright/Chromium pour toute interface utilisateur.
+- Review standard pour tout changement de code.
+- Review critique pour sécurité, production, DB, secrets, paiement, migration ou
+  changement irréversible.
+
+## Définition de terminé
+
+Une tâche est terminée uniquement si :
+
+- `AGENTS.md`, `QUALITY.md`, `DELIVERY.md` et `project.yaml` ont été lus ;
+- un checkpoint, une branche ou un worktree protège le changement important ;
+- les tests applicables passent ou l'impossibilité est documentée ;
+- les risques sont documentés ;
+- le rapport final est produit ;
+- la validation humaine est demandée pour toute action critique.
