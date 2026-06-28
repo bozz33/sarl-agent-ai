@@ -31,6 +31,18 @@ sed \
   "$ROOT/scripts/templates/AGENTS.md.template" \
   > "$PROJECT_ROOT/AGENTS.md"
 
+sed \
+  -e "s/__PROJECT_ID__/$PROJECT_ID/g" \
+  -e "s/__PROJECT_NAME__/$PROJECT_NAME/g" \
+  "$ROOT/scripts/templates/QUALITY.md.template" \
+  > "$PROJECT_ROOT/QUALITY.md"
+
+sed \
+  -e "s/__PROJECT_ID__/$PROJECT_ID/g" \
+  -e "s/__PROJECT_NAME__/$PROJECT_NAME/g" \
+  "$ROOT/scripts/templates/DELIVERY.md.template" \
+  > "$PROJECT_ROOT/DELIVERY.md"
+
 printf '# %s\n\nProjet inactif. Aucun worker automatique.\n' "$PROJECT_NAME" \
   > "$PROJECT_ROOT/README.md"
 
