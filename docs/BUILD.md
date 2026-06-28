@@ -14,6 +14,14 @@ La stack tourne sur trois images `sarl/*`, toutes reconstructibles depuis ce dé
 - Base : `python:3.12-slim`, install du paquet local (`pyproject.toml` + `src/`).
 - Build : `docker compose build project-memory-mcp`
 
+### `sarl/sandbox-runtime:python3.11-nodejs20-playwright`
+- Dockerfile : `deploy/sandbox-runtime/Dockerfile`
+- Base : `nikolaik/python-nodejs:python3.11-nodejs20` + Playwright + Chromium.
+- Build : `docker build -t sarl/sandbox-runtime:python3.11-nodejs20-playwright deploy/sandbox-runtime`
+- Build + preload sandbox : `scripts/build-sandbox-runtime.sh`
+- Usage : image d'execution Docker pour `code-builder`, `codex-builder` et
+  `qa-agent`, afin que les tests frontend/e2e puissent lancer un navigateur reel.
+
 Le câblage `build:` est présent dans `docker-compose.yml`. `docker compose up -d`
 réutilise l'image taguée existante ; ajouter `--build` pour reconstruire.
 
@@ -34,4 +42,6 @@ en `.tar` (tags réels) sous `backups/<horodatage>/images/`. Restauration :
 
 ## Sandbox
 
-`docker:27-dind` est tiré par digest SHA (pas de build local), volontaire.
+`docker:27-dind` est tiré par digest SHA (pas de build local), volontaire. Le
+runtime execute dans ce daemon est l'image SARL Playwright ci-dessus, prechargee
+depuis l'hote avant les tests/acceptance.
