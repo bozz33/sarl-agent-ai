@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERMES="/opt/hermes/.venv/bin/hermes"
+SANDBOX_RUNTIME_IMAGE="${SARL_SANDBOX_RUNTIME_IMAGE:-sarl/sandbox-runtime:python3.11-nodejs20-playwright}"
 ACTIVE_PROFILES=(
   sarl-router
   sarl-orchestrator
@@ -62,8 +63,8 @@ for profile in "${ACTIVE_PROFILES[@]}"; do
 done
 
 docker exec -u hermes sarl-hermes-agent \
-  docker run --rm nikolaik/python-nodejs:python3.11-nodejs20 \
-  sh -lc 'python --version >/dev/null; node --version >/dev/null; git --version >/dev/null'
+  docker run --rm "$SANDBOX_RUNTIME_IMAGE" \
+  sh -lc 'python --version >/dev/null; node --version >/dev/null; git --version >/dev/null; npx playwright --version >/dev/null; NODE_PATH="$(npm root -g)" node -e "const { chromium } = require(\"playwright\"); (async () => { const browser = await chromium.launch({ headless: true }); await browser.close(); })();"'
 
 test "$(systemctl is-enabled sarl-agent-ai-cron-tick.timer)" = "enabled"
 test "$(systemctl is-active sarl-agent-ai-cron-tick.timer)" = "active"
