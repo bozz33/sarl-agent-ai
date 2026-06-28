@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SANDBOX_RUNTIME_IMAGE="${SARL_SANDBOX_RUNTIME_IMAGE:-sarl/sandbox-runtime:python3.11-nodejs20-playwright}"
 
 cd "$ROOT"
 docker compose ps
@@ -43,10 +44,10 @@ test "$(docker network inspect sarl-agent-ai_sandbox-control \
 docker exec -u hermes sarl-hermes-agent \
   docker info >/dev/null
 docker exec -u hermes sarl-hermes-agent \
-  docker image inspect nikolaik/python-nodejs:python3.11-nodejs20 >/dev/null
+  docker image inspect "$SANDBOX_RUNTIME_IMAGE" >/dev/null
 docker exec -u hermes sarl-hermes-agent \
-  docker run --rm nikolaik/python-nodejs:python3.11-nodejs20 \
-  sh -lc 'python --version >/dev/null && node --version >/dev/null'
+  docker run --rm "$SANDBOX_RUNTIME_IMAGE" \
+  sh -lc 'python --version >/dev/null && node --version >/dev/null && npx playwright --version >/dev/null && npx playwright install --dry-run chromium | grep -q chromium'
 docker exec -u hermes sarl-hermes-agent \
   /opt/hermes/.venv/bin/hermes -p sarl-orchestrator \
   mcp test sarl_project_memory >/dev/null
