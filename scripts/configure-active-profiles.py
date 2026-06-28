@@ -43,23 +43,6 @@ MCP = {
     "enabled": True,
 }
 
-GROQ_PROVIDER = {
-    "name": "Groq",
-    "api": "https://api.groq.com/openai/v1",
-    "key_env": "GROQ_API_KEY",
-    "transport": "chat_completions",
-    "default_model": "llama-3.3-70b-versatile",
-    "models": {
-        "llama-3.3-70b-versatile": {
-            "context_length": 131072,
-        },
-        "qwen/qwen3-32b": {
-            "context_length": 131072,
-        },
-    },
-    "discover_models": True,
-}
-
 OPENAI_PROVIDER = {
     "name": "OpenAI API",
     "api": "https://api.openai.com/v1",
@@ -85,14 +68,27 @@ CODE_AGENTS = {
     "qa-agent",
 }
 
+SANDBOX_RUNTIME_IMAGE = "sarl/sandbox-runtime:python3.11-nodejs20-playwright"
+
+DOCKER_TERMINAL_PROFILES = {
+    "code-builder",
+    "codex-builder",
+    "qa-agent",
+}
+
 # Toolsets sans valeur fonctionnelle ici, desactives pour reduire surface et cout.
 # Aucun controle d'ordinateur (computer_use) pour les agents SARL.
 DISABLED_TOOLSETS = [
     "computer_use",
     "image_gen",
+    "vision_analyze",
     "tts",
     "homeassistant",
     "spotify",
+    "messaging",
+    "social",
+    "social_posting",
+    "email_send",
 ]
 
 # Profils a surface d'outils reduite (agents code + assistant personnel).
@@ -102,6 +98,8 @@ TOOLSET_RESTRICTED = CODE_AGENTS | {"sarl-personal-assistant"}
 def desired(config: dict, profile_name: str) -> dict:
     config.pop("provider", None)
     config.pop("base_url", None)
+    config.pop("openrouter", None)
+    config.pop("groq", None)
     config.setdefault("checkpoints", {})["enabled"] = True
     # Verrou natif d'auto-amelioration: toute ecriture de skill par un agent est
     # mise en attente (~/.hermes/pending/skills/) et promue via /skills approve.
@@ -110,8 +108,10 @@ def desired(config: dict, profile_name: str) -> dict:
     config.setdefault("skills", {})["write_approval"] = True
     config["hooks"] = {"pre_tool_call": [HOOK.copy()]}
     config.setdefault("mcp_servers", {})["sarl_project_memory"] = MCP.copy()
-    # Groq retire de la strategie active: ne plus l'injecter et le purger s'il reste.
+    # Groq/OpenRouter retires de la strategie active: ne plus les injecter et
+    # les purger s'ils restent.
     config.get("providers", {}).pop("groq", None)
+    config.get("providers", {}).pop("openrouter", None)
     config.setdefault("providers", {})["openai-api"] = OPENAI_PROVIDER.copy()
     config.setdefault("web", {})["search_backend"] = "ddgs"
 
@@ -258,6 +258,15 @@ def desired(config: dict, profile_name: str) -> dict:
 
     if profile_name in TOOLSET_RESTRICTED:
         config.setdefault("agent", {})["disabled_toolsets"] = list(DISABLED_TOOLSETS)
+
+    if profile_name in DOCKER_TERMINAL_PROFILES:
+        terminal = config.setdefault("terminal", {})
+        terminal["backend"] = "docker"
+        terminal["docker_image"] = SANDBOX_RUNTIME_IMAGE
+        terminal["singularity_image"] = f"docker://{SANDBOX_RUNTIME_IMAGE}"
+        terminal["modal_image"] = SANDBOX_RUNTIME_IMAGE
+        terminal["daytona_image"] = SANDBOX_RUNTIME_IMAGE
+        terminal["docker_run_as_host_user"] = True
 
     # Resilience: si DeepSeek est epuise/indisponible (quota, panne API), basculer
     # sur Claude -> GPT -> Gemini. Les agents code ont deja une chaine dediee.
