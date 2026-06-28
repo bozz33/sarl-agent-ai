@@ -1,7 +1,8 @@
 # Sandbox, worktrees, checkpoints et hooks
 
-Etat : daemon sandbox et garde-fou actifs. L'image d'execution est prechargee
-et le reseau de controle reste volontairement interne.
+Etat : daemon sandbox et garde-fou actifs. L'image d'execution
+`sarl/sandbox-runtime:python3.11-nodejs20-playwright` est prechargee et le
+reseau de controle reste volontairement interne.
 
 ## Decisions
 
@@ -72,5 +73,6 @@ Le patch est applique. Docker-in-Docker est prive, sans montage du socket
 Docker hote. Hermes communique avec lui par le socket Unix partage
 `/opt/sandbox-shared/docker.sock`; aucun port TCP Docker n'est utilise. Le
 reseau `sandbox-control` est interne : le daemon ne telecharge pas d'image a
-l'execution. L'image Python/Node approuvee est prechargee depuis l'hote, puis
-identifiee par digest dans les profils code et QA.
+l'execution. L'image Python/Node/Playwright approuvee est prechargee depuis
+l'hote, puis referencee par les profils `code-builder`, `codex-builder` et
+`qa-agent`.
