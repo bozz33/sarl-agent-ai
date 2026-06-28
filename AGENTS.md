@@ -11,7 +11,7 @@ Lu par tout agent avant action, avec `project.yaml` et la skill
 
 ## Contrat opérationnel (résumé)
 
-1. Identifier `project_id`, lire `AGENTS.md` + `project.yaml`.
+1. Identifier `project_id`, lire `AGENTS.md`, `QUALITY.md`, `DELIVERY.md` + `project.yaml`.
 2. Distinguer fait, hypothèse, décision, info obsolète.
 3. Produire un rapport final structuré.
 4. Écrire les décisions importantes en mémoire projet (MCP) quand active.
@@ -19,6 +19,15 @@ Lu par tout agent avant action, avec `project.yaml` et la skill
 6. Ne jamais déployer, supprimer, migrer ou publier sans validation humaine.
 7. Backup / checkpoint / commit avant toute modification importante.
 8. Escalader en cas de doute.
+
+## Gates qualité et livraison
+
+- Lire `QUALITY.md` avant toute mission de code ou QA.
+- Lire `DELIVERY.md` avant toute préparation de livraison.
+- Une tâche code n'est pas terminée tant que tests/lint/typecheck/build/e2e
+  applicables n'ont pas été exécutés ou explicitement déclarés indisponibles.
+- Le merge, le déploiement, la migration, la suppression et toute action
+  production restent soumis à validation humaine.
 
 ## Décision et délégation
 
