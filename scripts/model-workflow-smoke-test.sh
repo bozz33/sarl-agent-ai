@@ -60,7 +60,7 @@ for profile in code-builder codex-builder qa-agent; do
   run_until_marker \
     "$profile" \
     "$marker" \
-    "Test sans projet. Utilise le terminal sandbox Docker pour exécuter python --version et node --version. Ne crée aucun fichier. Si les deux commandes réussissent, réponds avec le marqueur $marker." \
+    "Test sans projet. Utilise le terminal sandbox Docker pour exécuter python --version, node --version et npx playwright --version. Ne crée aucun fichier. Si les trois commandes réussissent, réponds avec le marqueur $marker." \
     >/dev/null || {
     echo "Sandbox agent workflow failed: $profile" >&2
     exit 1
