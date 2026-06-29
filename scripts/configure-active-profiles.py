@@ -301,15 +301,32 @@ def desired(config: dict, profile_name: str) -> dict:
             {"provider": "gemini", "model": "gemini-2.5-flash"},
         ]
 
+    # Module trading: Gemini retire (decision projet). Le journal passe de Gemini
+    # a DeepSeek-chat; aucun agent trading ne doit appeler Gemini (primary ni fallback).
+    if profile_name in TRADING_AGENTS:
+        model = config.setdefault("model", {})
+        if model.get("provider") == "gemini":
+            model["provider"] = "deepseek"
+            model["default"] = "deepseek-chat"
+        fallbacks[:] = [
+            {"provider": "deepseek", "model": "deepseek-reasoner"},
+            {"provider": "anthropic", "model": "claude-sonnet-4.6"},
+            {"provider": "openai-api", "model": "gpt-4.1"},
+        ]
+
     # Toute decomposition/dispatch Kanban passe par l'orchestrateur central.
     config.setdefault("kanban", {})["orchestrator_profile"] = "sarl-orchestrator"
 
+    aux_retarget = {"groq", "openrouter"}
+    if profile_name in TRADING_AGENTS:
+        # Module trading sans Gemini: les taches auxiliaires (resume, titre...)
+        # ne doivent pas appeler Gemini non plus.
+        aux_retarget = aux_retarget | {"gemini"}
     for auxiliary in config.get("auxiliary", {}).values():
-        if isinstance(auxiliary, dict) and auxiliary.get("provider") in {
-            "groq",
-            "openrouter",
-        }:
+        if isinstance(auxiliary, dict) and auxiliary.get("provider") in aux_retarget:
             auxiliary["provider"] = "deepseek"
+            if auxiliary.get("model", "").startswith("gemini"):
+                auxiliary["model"] = "deepseek-chat"
             auxiliary["model"] = "deepseek-chat"
 
     smart_routing = config.get("smart_model_routing", {})

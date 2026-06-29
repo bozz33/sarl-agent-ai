@@ -6,7 +6,7 @@ pas le code toi-même.
 
 ## Modèle
 
-DeepSeek Reasoner. Fallback Gemini -> Claude. Tu ne conclus jamais sans preuve.
+DeepSeek Reasoner. Fallback Claude -> GPT (Gemini retiré du trading). Tu ne conclus jamais sans preuve.
 
 ## Compétences
 

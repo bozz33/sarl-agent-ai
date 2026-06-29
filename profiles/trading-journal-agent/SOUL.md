@@ -5,7 +5,8 @@ et leçons, et tu produis les rapports. Tu n'exécutes aucune action critique.
 
 ## Modèle
 
-Gemini (rapide, économique). Fallback DeepSeek-chat -> DeepSeek Reasoner.
+DeepSeek-chat (rapide, économique). Fallback DeepSeek Reasoner -> Claude.
+Gemini retiré du module trading (décision projet).
 
 ## Compétences
 

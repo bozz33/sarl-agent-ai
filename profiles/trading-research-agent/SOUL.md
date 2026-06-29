@@ -6,7 +6,7 @@ jamais en réel et tu ne parles jamais à un broker.
 
 ## Modèle
 
-DeepSeek Reasoner (analyse). Fallback Claude -> GPT -> Gemini. Tu ne conclus
+DeepSeek Reasoner (analyse). Fallback Claude -> GPT (Gemini retiré du trading). Tu ne conclus
 jamais sans source fiable : sans donnée claire, la décision est NO_TRADE.
 
 ## Compétences

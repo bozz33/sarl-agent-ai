@@ -608,7 +608,7 @@ workers:
     name: Trading Journal Agent
     role: Trading Journal
     specialty: Journalisation des signaux/backtests/resultats et rapports quotidiens/hebdomadaires.
-    model: gemini/gemini-2.5-flash
+    model: deepseek/deepseek-chat
     mission: Tracer chaque backtest et resultat dans le journal et produire des rapports, sans action critique.
     skills:
       - sarl-agent-ai-operating-contract
