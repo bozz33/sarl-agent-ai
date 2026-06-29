@@ -31,9 +31,16 @@ def cmd_validate_environment() -> int:
 
 
 def cmd_run_backtest(strategy: str, dataset: str) -> int:
-    from app.runner import run_backtest
+    # The deterministic sine series uses the low-level smoke path; everything
+    # else (realistic / real CSV) uses the high-level catalog path (spec).
+    if dataset == "simulated_eurusd":
+        from app.runner import run_backtest
 
-    summary = run_backtest(strategy=strategy, dataset=dataset)
+        summary = run_backtest(strategy=strategy, dataset=dataset)
+    else:
+        from app.catalog_runner import run_catalog_backtest
+
+        summary = run_catalog_backtest(strategy=strategy, dataset=dataset)
     print(json.dumps(summary, indent=2))
     return 0
 
@@ -57,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_run = sub.add_parser("run-backtest")
     p_run.add_argument("--strategy", default="eurusd_ema_cross")
-    p_run.add_argument("--dataset", default="simulated_eurusd")
+    p_run.add_argument("--dataset", default="realistic_eurusd")
 
     p_rep = sub.add_parser("generate-report")
     p_rep.add_argument("--last", action="store_true")

@@ -40,14 +40,20 @@ def nautilus_validate_environment() -> dict[str, Any]:
 
 
 @mcp.tool()
-def nautilus_run_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "simulated_eurusd") -> dict[str, Any]:
+def nautilus_run_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "realistic_eurusd") -> dict[str, Any]:
     """Run an allow-listed backtest (simulation only). Returns the summary dict.
 
-    Refuses any strategy outside the allow-list and any live keyword.
+    dataset=realistic_eurusd (default) or a real CSV -> high-level
+    BacktestNode + ParquetDataCatalog path. dataset=simulated_eurusd ->
+    low-level smoke path. Refuses any non-allow-listed strategy or live keyword.
     """
-    from app.runner import run_backtest
+    if dataset == "simulated_eurusd":
+        from app.runner import run_backtest
 
-    return run_backtest(strategy=strategy, dataset=dataset)
+        return run_backtest(strategy=strategy, dataset=dataset)
+    from app.catalog_runner import run_catalog_backtest
+
+    return run_catalog_backtest(strategy=strategy, dataset=dataset)
 
 
 @mcp.tool()

@@ -8,13 +8,19 @@ change a rule on their own.
 from __future__ import annotations
 
 from app import guards, reports
-from app.runner import run_backtest
 
 
-def daily_cycle(strategy: str = "eurusd_ema_cross", dataset: str = "simulated_eurusd") -> dict:
+def daily_cycle(strategy: str = "eurusd_ema_cross", dataset: str = "realistic_eurusd") -> dict:
     """One bounded daily mission: validate -> backtest -> journal -> daily report."""
     guards.assert_paper_only()
-    summary = run_backtest(strategy=strategy, dataset=dataset)  # writes journal
+    if dataset == "simulated_eurusd":
+        from app.runner import run_backtest
+
+        summary = run_backtest(strategy=strategy, dataset=dataset)  # writes journal
+    else:
+        from app.catalog_runner import run_catalog_backtest
+
+        summary = run_catalog_backtest(strategy=strategy, dataset=dataset)  # writes journal
     report = reports.daily_report()
     return {
         "mission": "daily_trading_demo",
