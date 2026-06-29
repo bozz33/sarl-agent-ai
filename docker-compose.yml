@@ -100,7 +100,7 @@ services:
   # Backtest/simulation only; no live path. Reached by trading agents at
   # http://nautilus-runner-mcp:8200/mcp.
   nautilus-runner-mcp:
-    image: sarl/nautilus-runner:0.6.0
+    image: sarl/nautilus-runner:0.7.0
     build:
       context: ./services/nautilus-runner
     container_name: sarl-nautilus-runner-mcp
@@ -125,6 +125,24 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  # Phase 7 — IBKR PAPER gateway (headless, IBC auto-login). PAPER ONLY.
+  # Fill .secrets/ibkr.env and approve the 2FA push to start it. The paper API
+  # listens on 4002; nautilus-runner reaches it at ib-gateway:4002.
+  ib-gateway:
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    container_name: sarl-ib-gateway
+    restart: unless-stopped
+    env_file:
+      - .secrets/ibkr.env
+    environment:
+      TRADING_MODE: paper
+    expose:
+      - "4002"
+    networks:
+      - default
+    profiles:
+      - ibkr   # opt-in: `docker compose --profile ibkr up -d ib-gateway`
 
   sandbox-docker:
     image: docker:27-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce

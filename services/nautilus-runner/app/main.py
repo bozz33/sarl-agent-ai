@@ -71,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
     p_wf.add_argument("--dataset", default="realistic_eurusd")
     p_wf.add_argument("--folds", type=int, default=4)
 
+    sub.add_parser("validate-ibkr")
+
     p_rep = sub.add_parser("generate-report")
     p_rep.add_argument("--last", action="store_true")
 
@@ -84,6 +86,11 @@ def main(argv: list[str] | None = None) -> int:
         from app.walk_forward import walk_forward
 
         print(json.dumps(walk_forward(args.strategy, args.dataset, args.folds), indent=2))
+        return 0
+    if args.cmd == "validate-ibkr":
+        from app.ibkr_check import check_ibkr_paper
+
+        print(json.dumps(check_ibkr_paper(), indent=2))
         return 0
     if args.cmd == "generate-report":
         return cmd_generate_report(args.last)

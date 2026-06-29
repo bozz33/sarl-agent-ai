@@ -75,6 +75,15 @@ def nautilus_walk_forward(strategy: str = "eurusd_ema_atr", dataset: str = "real
 
 
 @mcp.tool()
+def nautilus_validate_ibkr() -> dict[str, Any]:
+    """Phase 7: check the IBKR PAPER connection (read-only). Proves the account
+    is paper ('DU' id); never places an order. Fails closed on non-paper/live."""
+    from app.ibkr_check import check_ibkr_paper
+
+    return check_ibkr_paper()
+
+
+@mcp.tool()
 def nautilus_daily_report() -> dict[str, Any]:
     """Generate the daily trading digest (markdown) from the journal."""
     from app import reports

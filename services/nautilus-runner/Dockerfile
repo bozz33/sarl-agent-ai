@@ -11,7 +11,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /srv
 
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir "nautilus_trader>=1.230.0" "pandas>=2.2" "mcp>=1.27,<2" "pytest>=8.0"
+RUN pip install --no-cache-dir "nautilus_trader>=1.230.0" "pandas>=2.2" "mcp>=1.27,<2" "ib_async>=2.0" "pytest>=8.0"
 
 COPY app ./app
 COPY strategies ./strategies
