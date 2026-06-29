@@ -124,4 +124,11 @@ def run_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "simulated_e
         "live": False,
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    # Close the loop: record the backtest in the journal for learning.
+    from app import journal
+
+    journal.init_db()
+    journal.write_backtest(summary)
+
     return summary
