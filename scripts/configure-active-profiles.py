@@ -30,7 +30,20 @@ PROFILES = (
     "bureau-etudes-agent",
     "designer-3d-agent",
     "sarl-personal-assistant",
+    "trading-research-agent",
+    "trading-risk-manager",
+    "trading-journal-agent",
+    "trading-qa-agent",
 )
+
+# Agents du module trading (backtest/simulation only). Surface d'outils
+# reduite comme les agents code : aucun computer_use, social, live, etc.
+TRADING_AGENTS = {
+    "trading-research-agent",
+    "trading-risk-manager",
+    "trading-journal-agent",
+    "trading-qa-agent",
+}
 
 HOOK = {
     "matcher": "terminal|execute_code|write_file|patch",
@@ -92,7 +105,7 @@ DISABLED_TOOLSETS = [
 ]
 
 # Profils a surface d'outils reduite (agents code + assistant personnel).
-TOOLSET_RESTRICTED = CODE_AGENTS | {"sarl-personal-assistant"}
+TOOLSET_RESTRICTED = CODE_AGENTS | TRADING_AGENTS | {"sarl-personal-assistant"}
 
 
 def desired(config: dict, profile_name: str) -> dict:

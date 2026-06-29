@@ -551,3 +551,98 @@ workers:
     maxConcurrentTasks: 1
     acceptsBroadcast: false
     reviewRequired: true
+
+  - id: trading-research-agent
+    name: Trading Research Agent
+    role: Trading Researcher
+    specialty: Recherche marche Forex, hypotheses et propositions de strategies a backtester (demo/simulation uniquement).
+    model: deepseek/deepseek-reasoner
+    mission: Etudier le marche et proposer des strategies NautilusTrader a backtester via nautilus-runner, sans jamais trader en reel ni parler a un broker.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-module-trading-demo
+      - sarl-nautilus-engine
+      - sarl-no-real-money-policy
+      - sarl-agent-reporting
+    capabilities:
+      - market-research
+      - strategy-proposal
+      - backtest-request
+    preferredTaskTypes:
+      - trading-research
+      - strategy-draft
+    greenlightRequiredFor:
+      - rule-change
+      - add-market
+      - any-live-path
+    maxConcurrentTasks: 1
+    acceptsBroadcast: false
+    reviewRequired: true
+
+  - id: trading-risk-manager
+    name: Trading Risk Manager
+    role: Trading Risk
+    specialty: Controle du risque des strategies/backtests - drawdown, risk/reward, anti-martingale, anti-overfitting.
+    model: deepseek/deepseek-reasoner
+    mission: Valider ou bloquer une strategie/backtest selon les regles de risque ; strict, conservateur, refuse souvent.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-trading-risk-management
+      - sarl-no-real-money-policy
+      - sarl-security-guardrails
+    capabilities:
+      - risk-review
+      - strategy-block
+    preferredTaskTypes:
+      - trading-risk-review
+    greenlightRequiredFor:
+      - rule-change
+      - risk-increase
+      - add-market
+      - any-live-path
+    maxConcurrentTasks: 1
+    acceptsBroadcast: false
+    reviewRequired: false
+
+  - id: trading-journal-agent
+    name: Trading Journal Agent
+    role: Trading Journal
+    specialty: Journalisation des signaux/backtests/resultats et rapports quotidiens/hebdomadaires.
+    model: gemini/gemini-2.5-flash
+    mission: Tracer chaque backtest et resultat dans le journal et produire des rapports, sans action critique.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-trading-journal
+      - sarl-no-real-money-policy
+      - sarl-agent-reporting
+    capabilities:
+      - journaling
+      - reporting
+    preferredTaskTypes:
+      - trading-journal
+      - trading-report
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: false
+
+  - id: trading-qa-agent
+    name: Trading QA Agent
+    role: Trading QA
+    specialty: Verification tests, artefacts, reproductibilite et scan no-live du module trading.
+    model: deepseek/deepseek-reasoner
+    mission: Prouver que chaque livrable trading repose sur un artefact reel et qu'aucun chemin live n'existe.
+    skills:
+      - sarl-agent-ai-operating-contract
+      - sarl-nautilus-engine
+      - sarl-no-real-money-policy
+      - sarl-agent-reporting
+    capabilities:
+      - qa
+      - no-live-scan
+      - artifact-verification
+    preferredTaskTypes:
+      - trading-qa
+      - acceptance
+    maxConcurrentTasks: 1
+    acceptsBroadcast: true
+    reviewRequired: false
