@@ -1,6 +1,6 @@
 services:
   hermes-agent:
-    image: sarl/hermes-agent:0.17.0-ddgs1
+    image: sarl/hermes-agent:0.17.0-audit20260629
     build:
       context: ./deploy/hermes-agent
     container_name: sarl-hermes-agent
