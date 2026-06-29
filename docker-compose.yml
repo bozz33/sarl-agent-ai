@@ -33,6 +33,7 @@ services:
       - ./scripts/personal-assistant-digest.py:/opt/sarl-maintenance/personal-assistant-digest.py:ro
       - ./scripts/email-prepare-draft.py:/opt/sarl-maintenance/email-prepare-draft.py:ro
       - ./scripts/trading-daily-digest.py:/opt/data/scripts/trading-daily-digest.py:ro
+      - ./scripts/trading-weekly-review.py:/opt/data/scripts/trading-weekly-review.py:ro
       - ./.secrets/ssh:/opt/hermes-ssh:ro
     networks:
       - default
