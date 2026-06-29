@@ -1,0 +1,9 @@
+# Generated backtest artifacts and data — not versioned.
+reports/backtests/BT-*/
+data/raw/
+data/catalog/
+data/simulated/*.parquet
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

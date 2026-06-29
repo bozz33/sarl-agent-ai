@@ -1,0 +1,77 @@
+"""CLI entrypoint for nautilus-runner (backtest/simulation only).
+
+Usage:
+    python -m app.main validate-environment
+    python -m app.main run-backtest --strategy eurusd_ema_cross --dataset simulated_eurusd
+    python -m app.main generate-report --last
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+
+from app import config, guards
+
+
+def cmd_validate_environment() -> int:
+    guards.assert_paper_only()
+    scanned = guards.scan_strategies_dir(config.STRATEGIES_DIR)
+    import nautilus_trader
+
+    out = {
+        "ok": True,
+        "nautilus_version": nautilus_trader.__version__,
+        "settings": config.RunnerSettings().as_dict(),
+        "strategies_scanned": scanned,
+    }
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+def cmd_run_backtest(strategy: str, dataset: str) -> int:
+    from app.runner import run_backtest
+
+    summary = run_backtest(strategy=strategy, dataset=dataset)
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
+def cmd_generate_report(last: bool) -> int:
+    dirs = sorted(config.REPORTS_DIR.glob("BT-*"))
+    if not dirs:
+        print(json.dumps({"error": "no backtests found"}))
+        return 1
+    target = dirs[-1] if last else dirs[-1]
+    summary = (target / "summary.json").read_text(encoding="utf-8")
+    print(summary)
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="nautilus-runner")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("validate-environment")
+
+    p_run = sub.add_parser("run-backtest")
+    p_run.add_argument("--strategy", default="eurusd_ema_cross")
+    p_run.add_argument("--dataset", default="simulated_eurusd")
+
+    p_rep = sub.add_parser("generate-report")
+    p_rep.add_argument("--last", action="store_true")
+
+    args = parser.parse_args(argv)
+
+    if args.cmd == "validate-environment":
+        return cmd_validate_environment()
+    if args.cmd == "run-backtest":
+        return cmd_run_backtest(args.strategy, args.dataset)
+    if args.cmd == "generate-report":
+        return cmd_generate_report(args.last)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

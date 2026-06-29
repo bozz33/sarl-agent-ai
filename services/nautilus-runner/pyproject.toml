@@ -1,0 +1,17 @@
+[project]
+name = "nautilus-runner"
+version = "0.1.0"
+description = "SARL secured adapter between Hermes and NautilusTrader (backtest/simulation only)."
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "nautilus_trader>=1.230.0",
+    "pandas>=2.2",
+]
+
+[project.optional-dependencies]
+viz = ["nautilus_trader[visualization]>=1.230.0"]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
