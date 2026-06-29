@@ -11,8 +11,32 @@ REPORTS_DIR = SERVICE_ROOT / "reports" / "backtests"
 DATA_DIR = SERVICE_ROOT / "data"
 STRATEGIES_DIR = SERVICE_ROOT / "strategies"
 
-# Strategies the runner is allowed to execute in v1. Anything else is refused.
-ALLOWED_STRATEGIES = {"eurusd_ema_cross"}
+# Strategies the runner is allowed to execute. Anything else is refused.
+# Each entry maps an allow-listed id to its import paths for the high-level
+# (BacktestNode) path.
+STRATEGY_SPECS = {
+    "eurusd_ema_cross": {
+        "strategy_path": "nautilus_trader.examples.strategies.ema_cross:EMACross",
+        "config_path": "nautilus_trader.examples.strategies.ema_cross:EMACrossConfig",
+        "params": {"fast_ema_period": 10, "slow_ema_period": 20},
+    },
+    "eurusd_ema_atr": {
+        "strategy_path": "strategies.eurusd_ema_atr:EmaAtr",
+        "config_path": "strategies.eurusd_ema_atr:EmaAtrConfig",
+        "params": {
+            "fast_ema_period": 10,
+            "slow_ema_period": 20,
+            "rsi_period": 14,
+            "atr_period": 14,
+            "rsi_overbought": 70.0,
+            "rsi_oversold": 30.0,
+            "atr_no_trade": 0.0025,
+            "atr_stop_mult": 2.0,
+            "rr": 1.5,
+        },
+    },
+}
+ALLOWED_STRATEGIES = set(STRATEGY_SPECS)
 
 # Markets allowed in v1.
 ALLOWED_MARKETS = {"EUR/USD"}

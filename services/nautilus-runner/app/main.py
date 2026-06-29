@@ -66,6 +66,11 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--strategy", default="eurusd_ema_cross")
     p_run.add_argument("--dataset", default="realistic_eurusd")
 
+    p_wf = sub.add_parser("walk-forward")
+    p_wf.add_argument("--strategy", default="eurusd_ema_atr")
+    p_wf.add_argument("--dataset", default="realistic_eurusd")
+    p_wf.add_argument("--folds", type=int, default=4)
+
     p_rep = sub.add_parser("generate-report")
     p_rep.add_argument("--last", action="store_true")
 
@@ -75,6 +80,11 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_validate_environment()
     if args.cmd == "run-backtest":
         return cmd_run_backtest(args.strategy, args.dataset)
+    if args.cmd == "walk-forward":
+        from app.walk_forward import walk_forward
+
+        print(json.dumps(walk_forward(args.strategy, args.dataset, args.folds), indent=2))
+        return 0
     if args.cmd == "generate-report":
         return cmd_generate_report(args.last)
     return 2

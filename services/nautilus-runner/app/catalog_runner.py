@@ -34,8 +34,11 @@ from app.data import dataset_dataframe
 CATALOG_PATH = config.DATA_DIR / "catalog"
 
 
-def _build_catalog(dataset: str) -> tuple[ParquetDataCatalog, object, BarType, int, str]:
-    """Build (or rebuild) the catalog with the instrument + bid/ask bars."""
+def _build_catalog(dataset: str, df=None, provenance: str | None = None) -> tuple[ParquetDataCatalog, object, BarType, int, str]:
+    """Build (or rebuild) the catalog with the instrument + bid/ask bars.
+
+    Pass *df* to backtest a specific slice (e.g. a walk-forward fold).
+    """
     if CATALOG_PATH.exists():
         shutil.rmtree(CATALOG_PATH)
     CATALOG_PATH.mkdir(parents=True, exist_ok=True)
@@ -44,7 +47,10 @@ def _build_catalog(dataset: str) -> tuple[ParquetDataCatalog, object, BarType, i
     instrument = TestInstrumentProvider.default_fx_ccy("EUR/USD")
     catalog.write_data([instrument])
 
-    df_bid, provenance = dataset_dataframe(dataset)
+    if df is None:
+        df_bid, provenance = dataset_dataframe(dataset)
+    else:
+        df_bid, provenance = df, (provenance or "slice")
     spread = 0.00010
     df_ask = df_bid[["open", "high", "low", "close"]] + spread
     df_ask["volume"] = df_bid["volume"]
@@ -58,15 +64,19 @@ def _build_catalog(dataset: str) -> tuple[ParquetDataCatalog, object, BarType, i
     return catalog, instrument, bid_type, len(bid_bars), provenance
 
 
-def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "realistic_eurusd") -> dict:
-    """Config-driven backtest via BacktestNode over a ParquetDataCatalog."""
+def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "realistic_eurusd",
+                         df=None, record: bool = True) -> dict:
+    """Config-driven backtest via BacktestNode over a ParquetDataCatalog.
+
+    df: optional bar slice (walk-forward fold). record: write journal/reports.
+    """
     guards.assert_paper_only()
     guards.scan_strategies_dir(config.STRATEGIES_DIR)
     guards.scan_text(f"{strategy} {dataset}", source="run request")
     if strategy not in config.ALLOWED_STRATEGIES:
         raise guards.LivePathBlocked(f"Strategy {strategy!r} not in allow-list.")
 
-    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset)
+    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df)
 
     venue = BacktestVenueConfig(
         name="SIM",
@@ -81,15 +91,15 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
         instrument_id=instrument.id,
         bar_types=[str(bid_type), str(bid_type).replace("BID", "ASK")],
     )
+    spec = config.STRATEGY_SPECS[strategy]
     strat = ImportableStrategyConfig(
-        strategy_path="nautilus_trader.examples.strategies.ema_cross:EMACross",
-        config_path="nautilus_trader.examples.strategies.ema_cross:EMACrossConfig",
+        strategy_path=spec["strategy_path"],
+        config_path=spec["config_path"],
         config={
             "instrument_id": instrument.id,
             "bar_type": str(bid_type),
             "trade_size": Decimal(100_000),
-            "fast_ema_period": 10,
-            "slow_ema_period": 20,
+            **spec["params"],
         },
     )
     run = BacktestRunConfig(
@@ -108,16 +118,9 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
     result = results[0]
 
     backtest_id = f"BT-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:6]}"
-    out_dir = config.REPORTS_DIR / backtest_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     engine = node.get_engine(run.id)
     orders_df = engine.trader.generate_orders_report()
-    fills_df = engine.trader.generate_fills_report()
     positions_df = engine.trader.generate_positions_report()
-    orders_df.to_csv(out_dir / "orders_report.csv")
-    fills_df.to_csv(out_dir / "fills_report.csv")
-    positions_df.to_csv(out_dir / "positions_report.csv")
     n_orders = len(orders_df)
     n_positions = len(positions_df)
 
@@ -142,13 +145,19 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
         "total_orders": int(n_orders),
         "total_positions": int(n_positions),
         "stats_pnls_usd": stats,
-        "report_dir": str(out_dir),
         "live": False,
     }
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-    from app import journal
+    if record:
+        out_dir = config.REPORTS_DIR / backtest_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        orders_df.to_csv(out_dir / "orders_report.csv")
+        engine.trader.generate_fills_report().to_csv(out_dir / "fills_report.csv")
+        positions_df.to_csv(out_dir / "positions_report.csv")
+        summary["report_dir"] = str(out_dir)
+        (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        from app import journal
 
-    journal.init_db()
-    journal.write_backtest(summary)
+        journal.init_db()
+        journal.write_backtest(summary)
     return summary

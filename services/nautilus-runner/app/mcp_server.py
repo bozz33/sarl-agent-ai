@@ -66,6 +66,15 @@ def nautilus_generate_report(last: bool = True) -> dict[str, Any]:
 
 
 @mcp.tool()
+def nautilus_walk_forward(strategy: str = "eurusd_ema_atr", dataset: str = "realistic_eurusd", folds: int = 4) -> dict[str, Any]:
+    """Walk-forward validation: backtest the strategy on sequential out-of-sample
+    folds and report per-fold metrics + consistency (anti-overfitting). Sim only."""
+    from app.walk_forward import walk_forward
+
+    return walk_forward(strategy=strategy, dataset=dataset, folds=folds)
+
+
+@mcp.tool()
 def nautilus_daily_report() -> dict[str, Any]:
     """Generate the daily trading digest (markdown) from the journal."""
     from app import reports
