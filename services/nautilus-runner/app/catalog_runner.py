@@ -156,6 +156,26 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
         positions_df.to_csv(out_dir / "positions_report.csv")
         summary["report_dir"] = str(out_dir)
         (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+        # HTML tearsheet (equity curve from realized position PnLs).
+        from app import viz
+
+        import re
+
+        pnl_col = next((c for c in positions_df.columns if "realized" in c.lower() and "pnl" in c.lower()), None)
+        realized = []
+        if pnl_col is not None:
+            for v in positions_df[pnl_col].tolist():
+                # Values can be Money-like strings, e.g. "-12.34 USD".
+                m = re.search(r"-?\d[\d,]*\.?\d*", str(v).replace(",", ""))
+                if m:
+                    try:
+                        realized.append(float(m.group()))
+                    except Exception:
+                        pass
+        (out_dir / "backtest_report.html").write_text(viz.render_html(summary, realized), encoding="utf-8")
+        summary["html_report"] = str(out_dir / "backtest_report.html")
+
         from app import journal
 
         journal.init_db()
