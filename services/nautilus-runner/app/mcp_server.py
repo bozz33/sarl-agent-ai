@@ -59,6 +59,22 @@ def nautilus_generate_report(last: bool = True) -> dict[str, Any]:
     return json.loads((dirs[-1] / "summary.json").read_text(encoding="utf-8"))
 
 
+@mcp.tool()
+def nautilus_daily_report() -> dict[str, Any]:
+    """Generate the daily trading digest (markdown) from the journal."""
+    from app import reports
+
+    return {"report_md": reports.daily_report(), "live": False}
+
+
+@mcp.tool()
+def nautilus_run_mission(name: str = "daily_trading_demo") -> dict[str, Any]:
+    """Run a bounded mission: daily_trading_demo | weekly_trading_review. Never loops."""
+    from app import scheduler
+
+    return scheduler.run_mission(name)
+
+
 def main() -> None:
     transport = os.environ.get("NAUTILUS_MCP_TRANSPORT", "stdio")
     if transport not in {"stdio", "sse", "streamable-http"}:

@@ -12,6 +12,8 @@ def test_only_allow_listed_tools_registered():
         "nautilus_validate_environment",
         "nautilus_run_backtest",
         "nautilus_generate_report",
+        "nautilus_daily_report",
+        "nautilus_run_mission",
     }
     # No live tool may ever appear here.
     for n in names:

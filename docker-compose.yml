@@ -98,7 +98,7 @@ services:
   # Backtest/simulation only; no live path. Reached by trading agents at
   # http://nautilus-runner-mcp:8200/mcp.
   nautilus-runner-mcp:
-    image: sarl/nautilus-runner:0.2.0
+    image: sarl/nautilus-runner:0.3.0
     build:
       context: ./services/nautilus-runner
     container_name: sarl-nautilus-runner-mcp
