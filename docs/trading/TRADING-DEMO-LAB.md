@@ -2,6 +2,22 @@
 
 Module interne Hermes de SARL-Agent-AI : `sarl-module-trading-demo`.
 
+## Glossaire « live » (éviter toute ambiguïté)
+Deux sens distincts — ne pas confondre :
+- **« profils Hermes activés »** = les 4 agents trading existent et sont câblés
+  au MCP. C'est de l'orchestration interne. ✅ fait.
+- **« live trading »** = ordres avec argent réel sur un broker. ❌ INTERDIT en v1.
+
+État sans ambiguïté :
+```
+Profils Hermes activés : oui
+Trading live réel       : non
+IBKR réel               : non
+NautilusTrader LiveNode / TradingNode : interdit v1
+```
+NautilusTrader permet la continuité backtest→live ; c'est précisément pourquoi
+la barrière `no-live` (`app/guards.py` + gate de build) reste stricte.
+
 ## Objectif
 Permettre à Hermes d'apprendre le trading par **backtest/simulation** :
 observer, rechercher, proposer une stratégie, lancer un backtest contrôlé,
