@@ -45,6 +45,12 @@ TRADING_AGENTS = {
     "trading-qa-agent",
 }
 
+# MCP du module trading (backtest only). Attache uniquement aux agents trading.
+NAUTILUS_MCP = {
+    "url": "http://nautilus-runner-mcp:8200/mcp",
+    "enabled": True,
+}
+
 HOOK = {
     "matcher": "terminal|execute_code|write_file|patch",
     "command": "/opt/sarl-hooks/sarl-policy-guard.py",
@@ -121,6 +127,8 @@ def desired(config: dict, profile_name: str) -> dict:
     config.setdefault("skills", {})["write_approval"] = True
     config["hooks"] = {"pre_tool_call": [HOOK.copy()]}
     config.setdefault("mcp_servers", {})["sarl_project_memory"] = MCP.copy()
+    if profile_name in TRADING_AGENTS:
+        config.setdefault("mcp_servers", {})["sarl_nautilus_runner"] = NAUTILUS_MCP.copy()
     # Groq/OpenRouter retires de la strategie active: ne plus les injecter et
     # les purger s'ils restent.
     config.get("providers", {}).pop("groq", None)

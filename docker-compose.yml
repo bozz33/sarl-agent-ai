@@ -94,6 +94,36 @@ services:
       retries: 12
       start_period: 10s
 
+  # Trading Demo Lab — secured NautilusTrader backtest adapter (MCP).
+  # Backtest/simulation only; no live path. Reached by trading agents at
+  # http://nautilus-runner-mcp:8200/mcp.
+  nautilus-runner-mcp:
+    image: sarl/nautilus-runner:0.2.0
+    build:
+      context: ./services/nautilus-runner
+    container_name: sarl-nautilus-runner-mcp
+    restart: unless-stopped
+    environment:
+      NAUTILUS_MCP_TRANSPORT: streamable-http
+      NAUTILUS_MCP_HOST: 0.0.0.0
+      NAUTILUS_MCP_PORT: "8200"
+      NAUTILUS_ENVIRONMENT: BACKTEST
+      TRADING_PAPER_ONLY: "true"
+      TRADING_LIVE_ENABLED: "false"
+      TRADING_KILL_SWITCH: "false"
+    expose:
+      - "8200"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1', 8200), 3).close()"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   sandbox-docker:
     image: docker:27-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce
     container_name: sarl-sandbox-docker

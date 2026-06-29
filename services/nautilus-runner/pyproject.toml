@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.15"
 dependencies = [
     "nautilus_trader>=1.230.0",
     "pandas>=2.2",
+    "mcp>=1.27,<2",
 ]
 
 [project.optional-dependencies]
