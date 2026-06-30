@@ -72,7 +72,14 @@ def realistic_eurusd_bars(periods: int = 5000, seed: float = 1.10, freq: str = "
     return df
 
 
-def load_csv_bars(path: str | Path) -> pd.DataFrame:
+def resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+    """Resample 1-min OHLCV bars to a larger timeframe (e.g. '15min', '1h')."""
+    agg = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+    out = df.resample(rule).agg(agg).dropna()
+    return out
+
+
+def load_csv_bars(path: str | Path, resample: str | None = None) -> pd.DataFrame:
     """Load REAL historical bars from a CSV (timestamp,open,high,low,close,volume)."""
     df = pd.read_csv(path)
     ts_col = next((c for c in df.columns if c.lower() in ("timestamp", "time", "date", "datetime")), df.columns[0])
@@ -81,10 +88,13 @@ def load_csv_bars(path: str | Path) -> pd.DataFrame:
     df.columns = [c.lower() for c in df.columns]
     if "volume" not in df.columns:
         df["volume"] = 1_000_000
-    return df[["open", "high", "low", "close", "volume"]]
+    df = df[["open", "high", "low", "close", "volume"]]
+    if resample:
+        df = resample_ohlcv(df, resample)
+    return df
 
 
-def dataset_dataframe(dataset: str, market: str = "EUR/USD") -> tuple[pd.DataFrame, str]:
+def dataset_dataframe(dataset: str, market: str = "EUR/USD", resample: str | None = None) -> tuple[pd.DataFrame, str]:
     """Resolve a dataset name to a DataFrame + a provenance label.
 
     - 'real' or a CSV name in data/historical/ -> real historical data.
@@ -96,11 +106,12 @@ def dataset_dataframe(dataset: str, market: str = "EUR/USD") -> tuple[pd.DataFra
     # Real data: a CSV dropped in data/historical/ takes precedence.
     if HISTORICAL_DIR.exists():
         candidates = sorted(HISTORICAL_DIR.glob("*.csv"))
+        tf = f"@{resample}" if resample else ""
         if dataset == "real" and candidates:
-            return load_csv_bars(candidates[0]), f"real-csv:{candidates[0].name}"
+            return load_csv_bars(candidates[0], resample=resample), f"real-csv:{candidates[0].name}{tf}"
         named = HISTORICAL_DIR / f"{dataset}.csv"
         if named.exists():
-            return load_csv_bars(named), f"real-csv:{named.name}"
+            return load_csv_bars(named, resample=resample), f"real-csv:{named.name}{tf}"
     from app.config import MARKET_SEEDS
 
     seed = MARKET_SEEDS.get(market, 1.10)

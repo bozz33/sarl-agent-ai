@@ -34,10 +34,11 @@ from app.data import dataset_dataframe
 CATALOG_PATH = config.DATA_DIR / "catalog"
 
 
-def _build_catalog(dataset: str, df=None, provenance: str | None = None, market: str = "EUR/USD") -> tuple[ParquetDataCatalog, object, BarType, int, str]:
+def _build_catalog(dataset: str, df=None, provenance: str | None = None, market: str = "EUR/USD", resample: str | None = None) -> tuple[ParquetDataCatalog, object, BarType, int, str]:
     """Build (or rebuild) the catalog with the instrument + bid/ask bars.
 
     Pass *df* to backtest a specific slice (e.g. a walk-forward fold).
+    resample: aggregate to a larger timeframe (e.g. '15min') to cut intraday noise.
     """
     if CATALOG_PATH.exists():
         shutil.rmtree(CATALOG_PATH)
@@ -48,7 +49,7 @@ def _build_catalog(dataset: str, df=None, provenance: str | None = None, market:
     catalog.write_data([instrument])
 
     if df is None:
-        df_bid, provenance = dataset_dataframe(dataset, market=market)
+        df_bid, provenance = dataset_dataframe(dataset, market=market, resample=resample)
     else:
         df_bid, provenance = df, (provenance or "slice")
     # JPY pairs quote with a 0.01 pip; majors with 0.0001.
@@ -67,7 +68,7 @@ def _build_catalog(dataset: str, df=None, provenance: str | None = None, market:
 
 def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "realistic_eurusd",
                          df=None, record: bool = True, market: str = "EUR/USD",
-                         params_override: dict | None = None) -> dict:
+                         params_override: dict | None = None, resample: str | None = None) -> dict:
     """Config-driven backtest via BacktestNode over a ParquetDataCatalog.
 
     df: optional bar slice (walk-forward fold). record: write journal/reports.
@@ -81,7 +82,7 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
     if market not in config.ALLOWED_MARKETS:
         raise guards.LivePathBlocked(f"Market {market!r} not in allow-list.")
 
-    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df, market=market)
+    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df, market=market, resample=resample)
 
     venue = BacktestVenueConfig(
         name="SIM",
