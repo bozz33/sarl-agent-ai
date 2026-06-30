@@ -17,17 +17,23 @@ from app.walk_forward import walk_forward
 
 
 def _grid() -> list[tuple[str, dict]]:
-    """Bounded (strategy, params) grid."""
+    """Bounded (strategy, params) grid across families: trend, MR, breakout."""
     combos: list[tuple[str, dict]] = []
-    # Naive EMA cross: fast/slow only.
+    # Trend: naive EMA cross.
     for fast, slow in itertools.product((8, 12), (20, 50)):
         combos.append(("eurusd_ema_cross", {"fast_ema_period": fast, "slow_ema_period": slow}))
-    # Enriched EMA+RSI+ATR: fast/slow + ATR stop + R:R.
+    # Trend: enriched EMA+RSI+ATR.
     for fast, slow, atr_mult, rr in itertools.product((8, 12), (20, 50), (1.5, 2.5), (1.5, 2.0)):
         combos.append(("eurusd_ema_atr", {
             "fast_ema_period": fast, "slow_ema_period": slow,
             "atr_stop_mult": atr_mult, "rr": rr,
         }))
+    # Mean-reversion: Bollinger fade, range-filtered.
+    for bb_k, er_max, atr_mult in itertools.product((1.5, 2.0), (0.3, 0.4), (1.5, 2.5)):
+        combos.append(("bollinger_mr", {"bb_k": bb_k, "er_range_max": er_max, "atr_stop_mult": atr_mult}))
+    # Breakout: Donchian, trend-filtered.
+    for dc, er_min, rr in itertools.product((20, 40), (0.35, 0.5), (1.5, 2.5)):
+        combos.append(("donchian_break", {"dc_period": dc, "er_trend_min": er_min, "rr": rr}))
     return combos
 
 
@@ -38,8 +44,8 @@ def _num(stats: dict, key: str, default: float = 0.0) -> float:
         return default
 
 
-def run_sweep(markets: list[str] | None = None, max_combos: int = 80,
-              min_positions: int = 8, top_n: int = 3,
+def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
+              min_positions: int = 5, top_n: int = 3,
               timeframes: list[str | None] | None = None) -> dict:
     """Backtest the grid across markets x timeframes, rank, walk-forward top, journal."""
     guards.assert_paper_only()
@@ -74,21 +80,33 @@ def run_sweep(markets: list[str] | None = None, max_combos: int = 80,
                     "expectancy": _num(st, "Expectancy"),
                 })
 
-    # Rank: enough trades to be meaningful, then by PnL, then win rate.
+    # Rank by EXPECTANCY (per-trade edge — fairer than raw PnL across sample
+    # sizes), requiring enough trades to be meaningful. The 2025-26 literature
+    # favours expectancy + robustness over raw PnL / win rate.
     valid = [r for r in rows if "error" not in r and r["positions"] >= min_positions]
-    valid.sort(key=lambda r: (r["pnl"], r["win_rate"]), reverse=True)
-    top = valid[:top_n]
-
-    # Walk-forward the best ones for out-of-sample robustness (same timeframe).
-    for r in top:
+    valid.sort(key=lambda r: (r["expectancy"], r["pnl"]), reverse=True)
+    # Walk-forward a wider shortlist, then keep only out-of-sample-robust ones.
+    shortlist = valid[: max(top_n * 3, 6)]
+    for r in shortlist:
         try:
             wf = walk_forward(strategy=r["strategy"],
                               dataset="ibkr_" + r["market"].replace("/", "").lower(),
                               folds=4, market=r["market"], params_override=r["params"],
                               resample=r.get("_tf"))
             r["walk_forward"] = wf["aggregate"]
+            agg = wf["aggregate"]
+            # Robust score: reward OOS consistency + OOS mean PnL, penalise variance.
+            prof = agg.get("profitable_folds", "0/4")
+            folds_ok = int(str(prof).split("/")[0]) if "/" in str(prof) else 0
+            r["robust_score"] = round(folds_ok + agg.get("mean_pnl", 0.0) / 1000.0
+                                      - agg.get("pnl_stdev", 0.0) / 2000.0, 3)
         except Exception as exc:
             r["walk_forward"] = {"error": str(exc)[:120]}
+            r["robust_score"] = -999.0
+
+    # Final ranking = robustness first.
+    shortlist.sort(key=lambda r: r.get("robust_score", -999.0), reverse=True)
+    top = shortlist[:top_n]
 
     # Per-timeframe aggregate (the headline finding: does a larger TF help?).
     by_tf = {}

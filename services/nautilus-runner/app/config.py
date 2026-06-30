@@ -30,10 +30,29 @@ STRATEGY_SPECS = {
             "atr_period": 14,
             "rsi_overbought": 70.0,
             "rsi_oversold": 30.0,
-            "atr_no_trade": 0.0025,
+            "atr_no_trade": 0.002,
             "atr_stop_mult": 2.0,
             "rr": 1.5,
         },
+    },
+    "bollinger_mr": {
+        "strategy_path": "strategies.bollinger_mr:BollingerMr",
+        "config_path": "strategies.bollinger_mr:BollingerMrConfig",
+        "params": {
+            "bb_period": 20, "bb_k": 2.0, "rsi_period": 14, "er_period": 10,
+            "atr_period": 14, "rsi_oversold": 35.0, "rsi_overbought": 65.0,
+            "er_range_max": 0.35, "atr_stop_mult": 2.0,
+        },
+        "family": "mean-reversion",
+    },
+    "donchian_break": {
+        "strategy_path": "strategies.donchian_break:DonchianBreak",
+        "config_path": "strategies.donchian_break:DonchianBreakConfig",
+        "params": {
+            "dc_period": 20, "er_period": 10, "atr_period": 14,
+            "er_trend_min": 0.4, "atr_stop_mult": 2.0, "rr": 2.0,
+        },
+        "family": "breakout",
     },
 }
 ALLOWED_STRATEGIES = set(STRATEGY_SPECS)
