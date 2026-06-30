@@ -13,6 +13,7 @@ def test_only_allow_listed_tools_registered():
         "nautilus_run_backtest",
         "nautilus_walk_forward",
         "nautilus_validate_ibkr",
+        "nautilus_fetch_ibkr_data",
         "nautilus_generate_report",
         "nautilus_daily_report",
         "nautilus_run_mission",

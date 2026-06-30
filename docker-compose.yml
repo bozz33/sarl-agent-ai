@@ -100,7 +100,7 @@ services:
   # Backtest/simulation only; no live path. Reached by trading agents at
   # http://nautilus-runner-mcp:8200/mcp.
   nautilus-runner-mcp:
-    image: sarl/nautilus-runner:0.7.1
+    image: sarl/nautilus-runner:0.8.0
     build:
       context: ./services/nautilus-runner
     container_name: sarl-nautilus-runner-mcp
@@ -132,7 +132,7 @@ services:
   # Use the DEDICATED paper username in .secrets/ibkr.env (no 2FA). The paper API
   # is published by socat on 0.0.0.0:4004; nautilus-runner reaches ib-gateway:4004.
   # TWS_ACCEPT_INCOMING=accept auto-accepts the API connection (no blocking popup).
-  # READ_ONLY_API=yes forbids any order via the API at this stage (extra no-live guard).
+  # No order is ever placed by the runner (read-only fetch + paper backtest only).
   ib-gateway:
     image: ghcr.io/gnzsnz/ib-gateway:stable
     container_name: sarl-ib-gateway

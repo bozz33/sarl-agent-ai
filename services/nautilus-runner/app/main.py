@@ -73,6 +73,11 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("validate-ibkr")
 
+    p_fetch = sub.add_parser("fetch-ibkr-data")
+    p_fetch.add_argument("--duration", default="2 D")
+    p_fetch.add_argument("--bar-size", default="1 min")
+    p_fetch.add_argument("--name", default="ibkr_eurusd")
+
     p_rep = sub.add_parser("generate-report")
     p_rep.add_argument("--last", action="store_true")
 
@@ -91,6 +96,11 @@ def main(argv: list[str] | None = None) -> int:
         from app.ibkr_check import check_ibkr_paper
 
         print(json.dumps(check_ibkr_paper(), indent=2))
+        return 0
+    if args.cmd == "fetch-ibkr-data":
+        from app.ibkr_data import fetch_ibkr_eurusd
+
+        print(json.dumps(fetch_ibkr_eurusd(args.duration, args.bar_size, args.name), indent=2))
         return 0
     if args.cmd == "generate-report":
         return cmd_generate_report(args.last)

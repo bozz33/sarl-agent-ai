@@ -84,6 +84,15 @@ def nautilus_validate_ibkr() -> dict[str, Any]:
 
 
 @mcp.tool()
+def nautilus_fetch_ibkr_data(duration: str = "2 D", bar_size: str = "1 min", name: str = "ibkr_eurusd") -> dict[str, Any]:
+    """Phase 7: fetch REAL historical EUR/USD bars from IBKR paper into a CSV
+    (data/historical/<name>.csv) for backtesting on real data. Read-only, no order."""
+    from app.ibkr_data import fetch_ibkr_eurusd
+
+    return fetch_ibkr_eurusd(duration=duration, bar_size=bar_size, name=name)
+
+
+@mcp.tool()
 def nautilus_daily_report() -> dict[str, Any]:
     """Generate the daily trading digest (markdown) from the journal."""
     from app import reports
