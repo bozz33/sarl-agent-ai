@@ -33,7 +33,7 @@ class EmaAtrConfig(StrategyConfig, frozen=True):
     atr_period: int = 14
     rsi_overbought: float = 70.0
     rsi_oversold: float = 30.0
-    atr_no_trade: float = 0.0025  # price units; skip entries above this ATR
+    atr_no_trade: float = 0.002  # FRACTION of price; skip entries if ATR/price above this
     atr_stop_mult: float = 2.0
     rr: float = 1.5
 
@@ -73,8 +73,9 @@ class EmaAtr(Strategy):
                     self._sl = self._tp = None
             return
 
-        # Flat: no-trade gate on extreme volatility.
-        if atr > self.config.atr_no_trade:
+        # Flat: no-trade gate on extreme volatility (ATR as a fraction of price,
+        # so the threshold works across markets, e.g. EUR/USD ~1.1 and USD/JPY ~157).
+        if px > 0 and atr / px > self.config.atr_no_trade:
             return
 
         # Entry with trend + RSI filters.

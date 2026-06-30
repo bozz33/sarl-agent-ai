@@ -84,11 +84,11 @@ def load_csv_bars(path: str | Path) -> pd.DataFrame:
     return df[["open", "high", "low", "close", "volume"]]
 
 
-def dataset_dataframe(dataset: str) -> tuple[pd.DataFrame, str]:
+def dataset_dataframe(dataset: str, market: str = "EUR/USD") -> tuple[pd.DataFrame, str]:
     """Resolve a dataset name to a DataFrame + a provenance label.
 
     - 'real' or a CSV name in data/historical/ -> real historical data.
-    - 'realistic_eurusd' (default) -> seeded random walk.
+    - 'realistic_*' (default) -> seeded random walk at the market's base price.
     - 'simulated_eurusd' -> the deterministic sine smoke series.
     """
     if dataset in ("simulated_eurusd",):
@@ -101,4 +101,7 @@ def dataset_dataframe(dataset: str) -> tuple[pd.DataFrame, str]:
         named = HISTORICAL_DIR / f"{dataset}.csv"
         if named.exists():
             return load_csv_bars(named), f"real-csv:{named.name}"
-    return realistic_eurusd_bars(), "realistic-random-walk"
+    from app.config import MARKET_SEEDS
+
+    seed = MARKET_SEEDS.get(market, 1.10)
+    return realistic_eurusd_bars(seed=seed), "realistic-random-walk"

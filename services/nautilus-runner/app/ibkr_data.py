@@ -20,12 +20,18 @@ CLIENT_ID = int(os.environ.get("IBKR_DATA_CLIENT_ID", "52"))
 HISTORICAL_DIR = config.DATA_DIR / "historical"
 
 
+def _dataset_name(market: str) -> str:
+    return "ibkr_" + market.replace("/", "").lower()
+
+
 def fetch_ibkr_eurusd(duration: str = "2 D", bar_size: str = "1 min",
-                      name: str = "ibkr_eurusd") -> dict:
-    """Fetch real EUR/USD bars from IBKR paper and save data/historical/<name>.csv."""
+                      name: str | None = None, market: str = "EUR/USD") -> dict:
+    """Fetch real bars for *market* from IBKR paper into data/historical/<name>.csv."""
     guards.assert_paper_only()
     if os.environ.get("TRADING_LIVE_ENABLED", "false").lower() == "true":
         raise guards.LivePathBlocked("TRADING_LIVE_ENABLED=true is forbidden.")
+    name = name or _dataset_name(market)
+    symbol = market.replace("/", "")
 
     try:
         from ib_async import IB, Forex, util
@@ -45,7 +51,7 @@ def fetch_ibkr_eurusd(duration: str = "2 D", bar_size: str = "1 min",
             raise guards.LivePathBlocked(f"Non-paper account(s): {accounts}. Refusing.")
 
         ib.reqMarketDataType(3)  # delayed is fine for historical without a subscription
-        contract = Forex("EURUSD")
+        contract = Forex(symbol)
         ib.qualifyContracts(contract)
         bars = ib.reqHistoricalData(
             contract, endDateTime="", durationStr=duration,
@@ -65,6 +71,7 @@ def fetch_ibkr_eurusd(duration: str = "2 D", bar_size: str = "1 min",
         out.to_csv(path, index=False)
         return {
             "ok": True,
+            "market": market,
             "dataset": name,
             "csv": str(path),
             "bars": int(len(out)),

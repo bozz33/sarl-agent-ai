@@ -38,8 +38,14 @@ STRATEGY_SPECS = {
 }
 ALLOWED_STRATEGIES = set(STRATEGY_SPECS)
 
-# Markets allowed in v1.
-ALLOWED_MARKETS = {"EUR/USD"}
+# Markets allowed (forex majors). Seed = a realistic base price for the
+# synthetic generator; IBKR real data overrides it per market.
+MARKET_SEEDS = {
+    "EUR/USD": 1.10,
+    "GBP/USD": 1.27,
+    "USD/JPY": 157.0,
+}
+ALLOWED_MARKETS = set(MARKET_SEEDS)
 
 
 @dataclass(frozen=True)

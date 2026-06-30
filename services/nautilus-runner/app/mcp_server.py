@@ -93,6 +93,17 @@ def nautilus_fetch_ibkr_data(duration: str = "2 D", bar_size: str = "1 min", nam
 
 
 @mcp.tool()
+def nautilus_run_sweep(markets: str = "") -> dict[str, Any]:
+    """Fast learning: batch-backtest a (market x strategy x params) grid, rank,
+    walk-forward the best, journal the lesson. markets = comma-separated or empty
+    for all. Backtest/simulation only, no order."""
+    from app.sweep import run_sweep
+
+    ms = [m.strip() for m in markets.split(",") if m.strip()] or None
+    return run_sweep(markets=ms)
+
+
+@mcp.tool()
 def nautilus_daily_report() -> dict[str, Any]:
     """Generate the daily trading digest (markdown) from the journal."""
     from app import reports

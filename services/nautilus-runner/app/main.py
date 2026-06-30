@@ -76,7 +76,11 @@ def main(argv: list[str] | None = None) -> int:
     p_fetch = sub.add_parser("fetch-ibkr-data")
     p_fetch.add_argument("--duration", default="2 D")
     p_fetch.add_argument("--bar-size", default="1 min")
-    p_fetch.add_argument("--name", default="ibkr_eurusd")
+    p_fetch.add_argument("--market", default="EUR/USD")
+    p_fetch.add_argument("--name", default=None)
+
+    p_sweep = sub.add_parser("sweep")
+    p_sweep.add_argument("--markets", default="")  # comma-separated; empty = all
 
     p_rep = sub.add_parser("generate-report")
     p_rep.add_argument("--last", action="store_true")
@@ -100,7 +104,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "fetch-ibkr-data":
         from app.ibkr_data import fetch_ibkr_eurusd
 
-        print(json.dumps(fetch_ibkr_eurusd(args.duration, args.bar_size, args.name), indent=2))
+        print(json.dumps(fetch_ibkr_eurusd(args.duration, args.bar_size, args.name, args.market), indent=2))
+        return 0
+    if args.cmd == "sweep":
+        from app.sweep import run_sweep
+
+        markets = [m.strip() for m in args.markets.split(",") if m.strip()] or None
+        print(json.dumps(run_sweep(markets=markets), indent=2, default=str))
         return 0
     if args.cmd == "generate-report":
         return cmd_generate_report(args.last)

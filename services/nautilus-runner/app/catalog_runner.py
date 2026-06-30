@@ -34,7 +34,7 @@ from app.data import dataset_dataframe
 CATALOG_PATH = config.DATA_DIR / "catalog"
 
 
-def _build_catalog(dataset: str, df=None, provenance: str | None = None) -> tuple[ParquetDataCatalog, object, BarType, int, str]:
+def _build_catalog(dataset: str, df=None, provenance: str | None = None, market: str = "EUR/USD") -> tuple[ParquetDataCatalog, object, BarType, int, str]:
     """Build (or rebuild) the catalog with the instrument + bid/ask bars.
 
     Pass *df* to backtest a specific slice (e.g. a walk-forward fold).
@@ -44,14 +44,15 @@ def _build_catalog(dataset: str, df=None, provenance: str | None = None) -> tupl
     CATALOG_PATH.mkdir(parents=True, exist_ok=True)
     catalog = ParquetDataCatalog(str(CATALOG_PATH))
 
-    instrument = TestInstrumentProvider.default_fx_ccy("EUR/USD")
+    instrument = TestInstrumentProvider.default_fx_ccy(market)
     catalog.write_data([instrument])
 
     if df is None:
-        df_bid, provenance = dataset_dataframe(dataset)
+        df_bid, provenance = dataset_dataframe(dataset, market=market)
     else:
         df_bid, provenance = df, (provenance or "slice")
-    spread = 0.00010
+    # JPY pairs quote with a 0.01 pip; majors with 0.0001.
+    spread = 0.01 if "JPY" in market else 0.00010
     df_ask = df_bid[["open", "high", "low", "close"]] + spread
     df_ask["volume"] = df_bid["volume"]
 
@@ -65,18 +66,22 @@ def _build_catalog(dataset: str, df=None, provenance: str | None = None) -> tupl
 
 
 def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "realistic_eurusd",
-                         df=None, record: bool = True) -> dict:
+                         df=None, record: bool = True, market: str = "EUR/USD",
+                         params_override: dict | None = None) -> dict:
     """Config-driven backtest via BacktestNode over a ParquetDataCatalog.
 
     df: optional bar slice (walk-forward fold). record: write journal/reports.
+    market: forex pair. params_override: strategy parameter overrides (sweep).
     """
     guards.assert_paper_only()
     guards.scan_strategies_dir(config.STRATEGIES_DIR)
-    guards.scan_text(f"{strategy} {dataset}", source="run request")
+    guards.scan_text(f"{strategy} {dataset} {market}", source="run request")
     if strategy not in config.ALLOWED_STRATEGIES:
         raise guards.LivePathBlocked(f"Strategy {strategy!r} not in allow-list.")
+    if market not in config.ALLOWED_MARKETS:
+        raise guards.LivePathBlocked(f"Market {market!r} not in allow-list.")
 
-    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df)
+    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df, market=market)
 
     venue = BacktestVenueConfig(
         name="SIM",
@@ -92,6 +97,7 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
         bar_types=[str(bid_type), str(bid_type).replace("BID", "ASK")],
     )
     spec = config.STRATEGY_SPECS[strategy]
+    merged = {**spec["params"], **(params_override or {})}
     strat = ImportableStrategyConfig(
         strategy_path=spec["strategy_path"],
         config_path=spec["config_path"],
@@ -99,7 +105,7 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
             "instrument_id": instrument.id,
             "bar_type": str(bid_type),
             "trade_size": Decimal(100_000),
-            **spec["params"],
+            **merged,
         },
     )
     run = BacktestRunConfig(
@@ -126,7 +132,10 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
 
     stats = {}
     try:
-        stats = {k: str(v) for k, v in result.stats_pnls.get("USD", {}).items()}
+        pnls = result.stats_pnls or {}
+        ccy = "USD" if "USD" in pnls else (next(iter(pnls), None))
+        if ccy:
+            stats = {k: str(v) for k, v in pnls.get(ccy, {}).items()}
     except Exception:
         stats = {}
 
@@ -138,7 +147,7 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
         "engine_version": __import__("nautilus_trader").__version__,
         "environment": config.RunnerSettings().environment,
         "strategy": strategy,
-        "market": "EUR/USD",
+        "market": market,
         "dataset": dataset,
         "data_provenance": provenance,
         "bars": n_bars,

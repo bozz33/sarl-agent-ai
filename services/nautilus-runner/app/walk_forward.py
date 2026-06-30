@@ -29,7 +29,8 @@ def _win_rate(summary: dict) -> float:
         return 0.0
 
 
-def walk_forward(strategy: str = "eurusd_ema_atr", dataset: str = "realistic_eurusd", folds: int = 4) -> dict:
+def walk_forward(strategy: str = "eurusd_ema_atr", dataset: str = "realistic_eurusd", folds: int = 4,
+                 market: str = "EUR/USD", params_override: dict | None = None) -> dict:
     """Run the strategy on `folds` sequential out-of-sample slices."""
     guards.assert_paper_only()
     if strategy not in config.ALLOWED_STRATEGIES:
@@ -37,7 +38,7 @@ def walk_forward(strategy: str = "eurusd_ema_atr", dataset: str = "realistic_eur
     if folds < 2:
         raise ValueError("walk_forward needs at least 2 folds")
 
-    df, provenance = dataset_dataframe(dataset)
+    df, provenance = dataset_dataframe(dataset, market=market)
     n = len(df)
     size = n // folds
     fold_results = []
@@ -45,7 +46,8 @@ def walk_forward(strategy: str = "eurusd_ema_atr", dataset: str = "realistic_eur
         start = i * size
         end = n if i == folds - 1 else (i + 1) * size
         slice_df = df.iloc[start:end]
-        s = run_catalog_backtest(strategy=strategy, dataset=dataset, df=slice_df, record=False)
+        s = run_catalog_backtest(strategy=strategy, dataset=dataset, df=slice_df, record=False,
+                                 market=market, params_override=params_override)
         fold_results.append({
             "fold": i + 1,
             "bars": int(s["bars"]),
