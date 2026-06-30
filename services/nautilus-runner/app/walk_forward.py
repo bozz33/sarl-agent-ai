@@ -31,7 +31,7 @@ def _win_rate(summary: dict) -> float:
 
 def walk_forward(strategy: str = "eurusd_ema_atr", dataset: str = "realistic_eurusd", folds: int = 4,
                  market: str = "EUR/USD", params_override: dict | None = None,
-                 resample: str | None = None) -> dict:
+                 resample: str | None = None, window: tuple[int, int] | None = None) -> dict:
     """Run the strategy on `folds` sequential out-of-sample slices."""
     guards.assert_paper_only()
     if strategy not in config.ALLOWED_STRATEGIES:
@@ -39,7 +39,7 @@ def walk_forward(strategy: str = "eurusd_ema_atr", dataset: str = "realistic_eur
     if folds < 2:
         raise ValueError("walk_forward needs at least 2 folds")
 
-    df, provenance = dataset_dataframe(dataset, market=market, resample=resample)
+    df, provenance = dataset_dataframe(dataset, market=market, resample=resample, window=window)
     n = len(df)
     size = n // folds
     fold_results = []

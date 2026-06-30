@@ -93,6 +93,12 @@ CREATE TABLE IF NOT EXISTS governor_reviews (
 -- Persistent strategy candidates: the autonomous research loop upserts here so
 -- a config's robustness is judged over MANY runs, not a single backtest. A
 -- candidate is "proven" only after surviving walk-forward repeatedly.
+-- Key/value state for the autonomous loop (iteration counter, window count).
+CREATE TABLE IF NOT EXISTS loop_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS strategy_candidates (
   id TEXT PRIMARY KEY,             -- hash of strategy+market+timeframe+params
   strategy TEXT NOT NULL,
@@ -154,6 +160,43 @@ def upsert_candidate(strategy: str, market: str, timeframe: str, params: dict,
         conn.execute("UPDATE strategy_candidates SET proven=? WHERE id=?", (proven, key))
         conn.commit()
         return {"id": key, "times_tested": tested, "times_robust": robust, "proven": bool(proven)}
+    finally:
+        conn.close()
+
+
+def get_state(key: str, default: str = "0", db_path: str | Path = DEFAULT_DB) -> str:
+    conn = connect(db_path)
+    try:
+        row = conn.execute("SELECT value FROM loop_state WHERE key=?", (key,)).fetchone()
+        return row[0] if row else default
+    finally:
+        conn.close()
+
+
+def set_state(key: str, value: str, db_path: str | Path = DEFAULT_DB) -> None:
+    conn = connect(db_path)
+    try:
+        conn.execute("INSERT INTO loop_state (key, value) VALUES (?,?) "
+                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def robustness_levels(db_path: str | Path = DEFAULT_DB) -> dict:
+    """The real-robustness picture: how high each candidate climbed (times_robust
+    = number of distinct windows survived) and the current ceiling reached."""
+    conn = connect(db_path)
+    try:
+        cols = ["strategy", "market", "timeframe", "params_json", "times_tested",
+                "times_robust", "best_robust_score"]
+        rows = conn.execute(
+            f"SELECT {','.join(cols)} FROM strategy_candidates "
+            "ORDER BY times_robust DESC, best_robust_score DESC LIMIT 12"
+        ).fetchall()
+        cands = [dict(zip(cols, r)) for r in rows]
+        ceiling = max((c["times_robust"] for c in cands), default=0)
+        return {"ceiling_level": ceiling, "candidates": cands}
     finally:
         conn.close()
 

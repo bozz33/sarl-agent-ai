@@ -42,18 +42,20 @@ def main() -> int:
         print(f"[trading-research-loop] MCP error: {exc}")
         return 1
 
-    proven = out.get("proven", [])
-    by_tf = out.get("by_timeframe", {})
+    ladder = out.get("ladder_top", [])
     lines = ["🔬 TRADING RESEARCH LOOP (backtest only, no order)"]
-    lines.append(f"sweep: {out.get('sweep_valid', '?')} valid configs | proven candidates: {out.get('proven_count', 0)}")
-    for tf, a in sorted(by_tf.items()):
-        lines.append(f"  {tf}: {a.get('profitable')}/{a.get('configs')} profitable, mean PnL {a.get('mean_pnl')}")
-    if proven:
-        lines.append("PROVEN (survived walk-forward repeatedly):")
-        for p in proven[:5]:
-            lines.append(f"  - {p['strategy']} {p['market']} {p['timeframe']} | robust x{p['times_robust']}/{p['times_tested']} score={round(p.get('best_robust_score', 0), 2)}")
-    else:
-        lines.append("No proven candidate yet — keep accumulating (good: no overfit shortcut).")
+    lines.append(f"iteration {out.get('iteration')} | window {out.get('window')} | "
+                 f"{out.get('sweep_valid', '?')} valid configs")
+    lines.append(f"ROBUSTNESS CEILING reached: level {out.get('ceiling_level', 0)} "
+                 f"(distinct windows survived). proven: {out.get('proven_count', 0)}")
+    if ladder:
+        lines.append("Top of the ladder (level = windows survived / tested):")
+        for c in ladder[:6]:
+            lines.append(f"  L{c['times_robust']}/{c['times_tested']}  {c['strategy']} "
+                         f"{c['market']} {c['timeframe']}  score={round(c.get('best_robust_score', 0), 2)}")
+    refresh = out.get("refresh", {})
+    if refresh.get("ok"):
+        lines.append(f"history refreshed: {refresh.get('market')} ({refresh.get('bars')} bars)")
     print("\n".join(lines))
     return 0
 

@@ -34,7 +34,7 @@ from app.data import dataset_dataframe
 CATALOG_PATH = config.DATA_DIR / "catalog"
 
 
-def _build_catalog(dataset: str, df=None, provenance: str | None = None, market: str = "EUR/USD", resample: str | None = None, catalog_dir: Path | None = None) -> tuple[ParquetDataCatalog, object, BarType, int, str]:
+def _build_catalog(dataset: str, df=None, provenance: str | None = None, market: str = "EUR/USD", resample: str | None = None, catalog_dir: Path | None = None, window: tuple[int, int] | None = None) -> tuple[ParquetDataCatalog, object, BarType, int, str]:
     """Build the catalog with the instrument + bid/ask bars in *catalog_dir*.
 
     A unique dir per call avoids the lazy-parquet race when the engine is kept
@@ -52,7 +52,7 @@ def _build_catalog(dataset: str, df=None, provenance: str | None = None, market:
     catalog.write_data([instrument])
 
     if df is None:
-        df_bid, provenance = dataset_dataframe(dataset, market=market, resample=resample)
+        df_bid, provenance = dataset_dataframe(dataset, market=market, resample=resample, window=window)
     else:
         df_bid, provenance = df, (provenance or "slice")
     # JPY pairs quote with a 0.01 pip; majors with 0.0001.
@@ -71,7 +71,8 @@ def _build_catalog(dataset: str, df=None, provenance: str | None = None, market:
 
 def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "realistic_eurusd",
                          df=None, record: bool = True, market: str = "EUR/USD",
-                         params_override: dict | None = None, resample: str | None = None) -> dict:
+                         params_override: dict | None = None, resample: str | None = None,
+                         window: tuple[int, int] | None = None) -> dict:
     """Config-driven backtest via BacktestNode over a ParquetDataCatalog.
 
     df: optional bar slice (walk-forward fold). record: write journal/reports.
@@ -87,7 +88,7 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
 
     # Unique catalog dir per call -> no lazy-parquet race across backtests.
     cdir = config.DATA_DIR / "catalog" / uuid.uuid4().hex[:12]
-    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df, market=market, resample=resample, catalog_dir=cdir)
+    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df, market=market, resample=resample, catalog_dir=cdir, window=window)
 
     venue = BacktestVenueConfig(
         name="SIM",

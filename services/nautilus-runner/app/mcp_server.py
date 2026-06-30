@@ -123,6 +123,17 @@ def nautilus_proven_candidates() -> dict[str, Any]:
 
 
 @mcp.tool()
+def nautilus_robustness_ladder() -> dict[str, Any]:
+    """The robustness ladder: how high each candidate climbed (level = distinct
+    windows survived) and the current ceiling reached. Shows the real limit."""
+    from app import journal
+
+    out = journal.robustness_levels()
+    out["live"] = False
+    return out
+
+
+@mcp.tool()
 def nautilus_daily_report() -> dict[str, Any]:
     """Generate the daily trading digest (markdown) from the journal."""
     from app import reports

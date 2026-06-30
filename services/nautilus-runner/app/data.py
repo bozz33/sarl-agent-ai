@@ -94,7 +94,25 @@ def load_csv_bars(path: str | Path, resample: str | None = None) -> pd.DataFrame
     return df
 
 
-def dataset_dataframe(dataset: str, market: str = "EUR/USD", resample: str | None = None) -> tuple[pd.DataFrame, str]:
+def window_slice(df: pd.DataFrame, window_index: int, n_windows: int = 6, frac: float = 0.5) -> pd.DataFrame:
+    """Return one sliding sub-window (frac of the data) at position window_index.
+
+    Each research LEVEL stress-tests on a DIFFERENT window, so "survived N levels"
+    means "survived N distinct periods", not the same backtest repeated. window 0
+    = earliest slice, window n_windows-1 = latest slice.
+    """
+    n = len(df)
+    if n_windows <= 1 or n < 50:
+        return df
+    size = max(int(n * frac), 50)
+    max_start = max(0, n - size)
+    pos = window_index % n_windows
+    start = int(pos / max(n_windows - 1, 1) * max_start)
+    return df.iloc[start:start + size]
+
+
+def dataset_dataframe(dataset: str, market: str = "EUR/USD", resample: str | None = None,
+                      window: tuple[int, int] | None = None) -> tuple[pd.DataFrame, str]:
     """Resolve a dataset name to a DataFrame + a provenance label.
 
     - 'real' or a CSV name in data/historical/ -> real historical data.
@@ -102,17 +120,24 @@ def dataset_dataframe(dataset: str, market: str = "EUR/USD", resample: str | Non
     - 'simulated_eurusd' -> the deterministic sine smoke series.
     """
     if dataset in ("simulated_eurusd",):
-        return synthetic_eurusd_bars(), "synthetic-sine"
+        return _apply_window(synthetic_eurusd_bars(), "synthetic-sine", window)
     # Real data: a CSV dropped in data/historical/ takes precedence.
     if HISTORICAL_DIR.exists():
         candidates = sorted(HISTORICAL_DIR.glob("*.csv"))
         tf = f"@{resample}" if resample else ""
         if dataset == "real" and candidates:
-            return load_csv_bars(candidates[0], resample=resample), f"real-csv:{candidates[0].name}{tf}"
+            return _apply_window(load_csv_bars(candidates[0], resample=resample), f"real-csv:{candidates[0].name}{tf}", window)
         named = HISTORICAL_DIR / f"{dataset}.csv"
         if named.exists():
-            return load_csv_bars(named, resample=resample), f"real-csv:{named.name}{tf}"
+            return _apply_window(load_csv_bars(named, resample=resample), f"real-csv:{named.name}{tf}", window)
     from app.config import MARKET_SEEDS
 
     seed = MARKET_SEEDS.get(market, 1.10)
-    return realistic_eurusd_bars(seed=seed), "realistic-random-walk"
+    return _apply_window(realistic_eurusd_bars(seed=seed), "realistic-random-walk", window)
+
+
+def _apply_window(df, provenance: str, window: tuple[int, int] | None):
+    if window is None:
+        return df, provenance
+    idx, total = window
+    return window_slice(df, idx, total), f"{provenance}#w{idx}/{total}"

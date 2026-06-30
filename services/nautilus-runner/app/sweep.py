@@ -62,7 +62,8 @@ def _resolve_market_data(market: str) -> tuple[str, list[str | None]]:
 
 def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
               min_positions: int = 5, top_n: int = 3,
-              timeframes: list[str | None] | None = None) -> dict:
+              timeframes: list[str | None] | None = None,
+              window: tuple[int, int] | None = None) -> dict:
     """Backtest the grid across markets x timeframes, rank, walk-forward top, journal."""
     guards.assert_paper_only()
     journal.init_db()  # ensure strategy_candidates exists before upserts
@@ -77,7 +78,7 @@ def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
             for strategy, params in grid:
                 try:
                     s = run_catalog_backtest(strategy=strategy, dataset=dataset, market=market,
-                                             params_override=params, record=False, resample=tf)
+                                             params_override=params, record=False, resample=tf, window=window)
                 except Exception as exc:
                     rows.append({"market": market, "timeframe": tf or "1min", "strategy": strategy,
                                  "params": params, "error": str(exc)[:120]})
@@ -109,7 +110,7 @@ def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
             wf = walk_forward(strategy=r["strategy"],
                               dataset=r.get("dataset", "ibkr_" + r["market"].replace("/", "").lower()),
                               folds=4, market=r["market"], params_override=r["params"],
-                              resample=r.get("_tf"))
+                              resample=r.get("_tf"), window=window)
             r["walk_forward"] = wf["aggregate"]
             agg = wf["aggregate"]
             # Robust score: reward OOS consistency + OOS mean PnL, penalise variance.

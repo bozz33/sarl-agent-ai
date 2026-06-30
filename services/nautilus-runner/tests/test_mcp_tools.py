@@ -17,6 +17,7 @@ def test_only_allow_listed_tools_registered():
         "nautilus_run_sweep",
         "nautilus_research_iteration",
         "nautilus_proven_candidates",
+        "nautilus_robustness_ladder",
         "nautilus_generate_report",
         "nautilus_daily_report",
         "nautilus_run_mission",
