@@ -15,7 +15,8 @@ import os
 from app import guards
 
 HOST = os.environ.get("IBKR_HOST", "ib-gateway")
-PORT = int(os.environ.get("IBKR_PORT", "4002"))  # 4002 = paper API
+# gnzsnz/ib-gateway exposes the PAPER API via socat on 4004 (4002 is internal).
+PORT = int(os.environ.get("IBKR_PORT", "4004"))
 CLIENT_ID = int(os.environ.get("IBKR_CLIENT_ID", "7"))
 
 
