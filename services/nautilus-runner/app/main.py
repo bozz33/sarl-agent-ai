@@ -82,6 +82,10 @@ def main(argv: list[str] | None = None) -> int:
     p_sweep = sub.add_parser("sweep")
     p_sweep.add_argument("--markets", default="")  # comma-separated; empty = all
 
+    p_rl = sub.add_parser("research-iteration")
+    p_rl.add_argument("--markets", default="")
+    p_rl.add_argument("--no-refresh", action="store_true")
+
     p_rep = sub.add_parser("generate-report")
     p_rep.add_argument("--last", action="store_true")
 
@@ -111,6 +115,12 @@ def main(argv: list[str] | None = None) -> int:
 
         markets = [m.strip() for m in args.markets.split(",") if m.strip()] or None
         print(json.dumps(run_sweep(markets=markets), indent=2, default=str))
+        return 0
+    if args.cmd == "research-iteration":
+        from app.research_loop import research_iteration
+
+        markets = [m.strip() for m in args.markets.split(",") if m.strip()] or None
+        print(json.dumps(research_iteration(markets=markets, refresh=not args.no_refresh), indent=2, default=str))
         return 0
     if args.cmd == "generate-report":
         return cmd_generate_report(args.last)

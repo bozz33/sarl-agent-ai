@@ -34,16 +34,19 @@ from app.data import dataset_dataframe
 CATALOG_PATH = config.DATA_DIR / "catalog"
 
 
-def _build_catalog(dataset: str, df=None, provenance: str | None = None, market: str = "EUR/USD", resample: str | None = None) -> tuple[ParquetDataCatalog, object, BarType, int, str]:
-    """Build (or rebuild) the catalog with the instrument + bid/ask bars.
+def _build_catalog(dataset: str, df=None, provenance: str | None = None, market: str = "EUR/USD", resample: str | None = None, catalog_dir: Path | None = None) -> tuple[ParquetDataCatalog, object, BarType, int, str]:
+    """Build the catalog with the instrument + bid/ask bars in *catalog_dir*.
 
+    A unique dir per call avoids the lazy-parquet race when the engine is kept
+    alive (dispose_on_completion=False) across sequential backtests.
     Pass *df* to backtest a specific slice (e.g. a walk-forward fold).
     resample: aggregate to a larger timeframe (e.g. '15min') to cut intraday noise.
     """
-    if CATALOG_PATH.exists():
-        shutil.rmtree(CATALOG_PATH)
-    CATALOG_PATH.mkdir(parents=True, exist_ok=True)
-    catalog = ParquetDataCatalog(str(CATALOG_PATH))
+    cdir = catalog_dir or CATALOG_PATH
+    if cdir.exists():
+        shutil.rmtree(cdir)
+    cdir.mkdir(parents=True, exist_ok=True)
+    catalog = ParquetDataCatalog(str(cdir))
 
     instrument = TestInstrumentProvider.default_fx_ccy(market)
     catalog.write_data([instrument])
@@ -82,7 +85,9 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
     if market not in config.ALLOWED_MARKETS:
         raise guards.LivePathBlocked(f"Market {market!r} not in allow-list.")
 
-    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df, market=market, resample=resample)
+    # Unique catalog dir per call -> no lazy-parquet race across backtests.
+    cdir = config.DATA_DIR / "catalog" / uuid.uuid4().hex[:12]
+    catalog, instrument, bid_type, n_bars, provenance = _build_catalog(dataset, df=df, market=market, resample=resample, catalog_dir=cdir)
 
     venue = BacktestVenueConfig(
         name="SIM",
@@ -92,7 +97,7 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
         starting_balances=["1_000_000 USD"],
     )
     data = BacktestDataConfig(
-        catalog_path=str(CATALOG_PATH),
+        catalog_path=str(cdir),
         data_cls=Bar,
         instrument_id=instrument.id,
         bar_types=[str(bid_type), str(bid_type).replace("BID", "ASK")],
@@ -190,4 +195,7 @@ def run_catalog_backtest(strategy: str = "eurusd_ema_cross", dataset: str = "rea
 
         journal.init_db()
         journal.write_backtest(summary)
+
+    # Drop this call's unique catalog dir (reports already materialised above).
+    shutil.rmtree(cdir, ignore_errors=True)
     return summary

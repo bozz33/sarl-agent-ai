@@ -89,12 +89,87 @@ CREATE TABLE IF NOT EXISTS governor_reviews (
   decision TEXT NOT NULL,
   notes TEXT
 );
+
+-- Persistent strategy candidates: the autonomous research loop upserts here so
+-- a config's robustness is judged over MANY runs, not a single backtest. A
+-- candidate is "proven" only after surviving walk-forward repeatedly.
+CREATE TABLE IF NOT EXISTS strategy_candidates (
+  id TEXT PRIMARY KEY,             -- hash of strategy+market+timeframe+params
+  strategy TEXT NOT NULL,
+  market TEXT NOT NULL,
+  timeframe TEXT NOT NULL,
+  params_json TEXT NOT NULL,
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  times_tested INTEGER NOT NULL DEFAULT 0,
+  times_robust INTEGER NOT NULL DEFAULT 0,
+  last_robust_score REAL,
+  best_robust_score REAL,
+  proven INTEGER NOT NULL DEFAULT 0
+);
 """
 
 TABLES = [
     "signals", "backtests", "trades", "risk_blocks",
     "daily_reports", "weekly_reports", "learning_proposals", "governor_reviews",
+    "strategy_candidates",
 ]
+
+# A candidate is "proven" only after surviving walk-forward this many times,
+# at this minimum robust-survival ratio. Repeated out-of-sample survival, not
+# one lucky backtest.
+PROVEN_MIN_ROBUST = 3
+PROVEN_MIN_RATIO = 0.6
+
+
+def upsert_candidate(strategy: str, market: str, timeframe: str, params: dict,
+                     is_robust: bool, robust_score: float, db_path: str | Path = DEFAULT_DB) -> dict:
+    """Record a candidate observation; promote to proven after repeated survival."""
+    import hashlib
+
+    key = hashlib.sha256(f"{strategy}|{market}|{timeframe}|{json.dumps(params, sort_keys=True)}".encode()).hexdigest()[:16]
+    conn = connect(db_path)
+    try:
+        row = conn.execute("SELECT times_tested, times_robust, best_robust_score FROM strategy_candidates WHERE id=?", (key,)).fetchone()
+        now = _now()
+        if row is None:
+            conn.execute(
+                "INSERT INTO strategy_candidates (id, strategy, market, timeframe, params_json, "
+                "first_seen, last_seen, times_tested, times_robust, last_robust_score, best_robust_score, proven) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (key, strategy, market, timeframe, json.dumps(params, sort_keys=True), now, now,
+                 1, 1 if is_robust else 0, robust_score, robust_score, 0),
+            )
+            tested, robust, best = 1, 1 if is_robust else 0, robust_score
+        else:
+            tested = row[0] + 1
+            robust = row[1] + (1 if is_robust else 0)
+            best = max(row[2] if row[2] is not None else -1e9, robust_score)
+            conn.execute(
+                "UPDATE strategy_candidates SET last_seen=?, times_tested=?, times_robust=?, "
+                "last_robust_score=?, best_robust_score=? WHERE id=?",
+                (now, tested, robust, robust_score, best, key),
+            )
+        proven = 1 if (robust >= PROVEN_MIN_ROBUST and robust / tested >= PROVEN_MIN_RATIO) else 0
+        conn.execute("UPDATE strategy_candidates SET proven=? WHERE id=?", (proven, key))
+        conn.commit()
+        return {"id": key, "times_tested": tested, "times_robust": robust, "proven": bool(proven)}
+    finally:
+        conn.close()
+
+
+def proven_candidates(db_path: str | Path = DEFAULT_DB) -> list[dict]:
+    conn = connect(db_path)
+    try:
+        cols = ["id", "strategy", "market", "timeframe", "params_json", "times_tested",
+                "times_robust", "best_robust_score"]
+        rows = conn.execute(
+            f"SELECT {','.join(cols)} FROM strategy_candidates WHERE proven=1 "
+            "ORDER BY best_robust_score DESC"
+        ).fetchall()
+        return [dict(zip(cols, r)) for r in rows]
+    finally:
+        conn.close()
 
 
 def _now() -> str:

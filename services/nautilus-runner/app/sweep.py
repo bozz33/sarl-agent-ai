@@ -44,20 +44,36 @@ def _num(stats: dict, key: str, default: float = 0.0) -> float:
         return default
 
 
+def _resolve_market_data(market: str) -> tuple[str, list[str | None]]:
+    """Pick the best dataset + sensible timeframes for a market.
+
+    Prefer long history (1h native, ~1y) -> test 1h + 4h + 1D aggregates.
+    Else short 1-min -> test 1min + 15min + 1h. Else realistic generator.
+    """
+    from app.data import HISTORICAL_DIR
+
+    slug = market.replace("/", "").lower()
+    if (HISTORICAL_DIR / f"ibkr_{slug}_long.csv").exists():
+        return f"ibkr_{slug}_long", [None, "4h", "1D"]
+    if (HISTORICAL_DIR / f"ibkr_{slug}.csv").exists():
+        return f"ibkr_{slug}", [None, "15min", "1h"]
+    return "realistic", [None, "15min", "1h"]
+
+
 def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
               min_positions: int = 5, top_n: int = 3,
               timeframes: list[str | None] | None = None) -> dict:
     """Backtest the grid across markets x timeframes, rank, walk-forward top, journal."""
     guards.assert_paper_only()
+    journal.init_db()  # ensure strategy_candidates exists before upserts
     markets = markets or sorted(config.ALLOWED_MARKETS)
-    # None = native 1-min; others resample to cut intraday noise.
-    timeframes = timeframes if timeframes is not None else [None, "15min", "1h"]
     grid = _grid()[:max_combos]
 
     rows = []
     for market in markets:
-        dataset = "ibkr_" + market.replace("/", "").lower()  # real CSV if present, else realistic
-        for tf in timeframes:
+        dataset, auto_tfs = _resolve_market_data(market)
+        tfs = timeframes if timeframes is not None else auto_tfs
+        for tf in tfs:
             for strategy, params in grid:
                 try:
                     s = run_catalog_backtest(strategy=strategy, dataset=dataset, market=market,
@@ -69,7 +85,8 @@ def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
                 st = s["stats_pnls_usd"]
                 rows.append({
                     "market": market,
-                    "timeframe": tf or "1min",
+                    "dataset": dataset,
+                    "timeframe": tf or "native",
                     "_tf": tf,
                     "strategy": strategy,
                     "params": params,
@@ -90,7 +107,7 @@ def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
     for r in shortlist:
         try:
             wf = walk_forward(strategy=r["strategy"],
-                              dataset="ibkr_" + r["market"].replace("/", "").lower(),
+                              dataset=r.get("dataset", "ibkr_" + r["market"].replace("/", "").lower()),
                               folds=4, market=r["market"], params_override=r["params"],
                               resample=r.get("_tf"))
             r["walk_forward"] = wf["aggregate"]
@@ -100,6 +117,14 @@ def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
             folds_ok = int(str(prof).split("/")[0]) if "/" in str(prof) else 0
             r["robust_score"] = round(folds_ok + agg.get("mean_pnl", 0.0) / 1000.0
                                       - agg.get("pnl_stdev", 0.0) / 2000.0, 3)
+            # Record the candidate so its robustness is judged over MANY runs.
+            try:
+                obs = journal.upsert_candidate(
+                    r["strategy"], r["market"], r["timeframe"], r["params"],
+                    is_robust=bool(agg.get("consistent")), robust_score=r["robust_score"])
+                r["candidate"] = obs
+            except Exception:
+                pass
         except Exception as exc:
             r["walk_forward"] = {"error": str(exc)[:120]}
             r["robust_score"] = -999.0
@@ -133,7 +158,7 @@ def run_sweep(markets: list[str] | None = None, max_combos: int = 120,
         "ran": len(rows),
         "valid": len(valid),
         "markets": markets,
-        "timeframes": [tf or "1min" for tf in timeframes],
+        "timeframes": sorted({r["timeframe"] for r in valid}) if valid else [],
         "by_timeframe": by_tf,
         "top": top,
         "best": best,

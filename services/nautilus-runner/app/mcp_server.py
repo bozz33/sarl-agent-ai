@@ -104,6 +104,25 @@ def nautilus_run_sweep(markets: str = "") -> dict[str, Any]:
 
 
 @mcp.tool()
+def nautilus_research_iteration(markets: str = "") -> dict[str, Any]:
+    """Autonomous research iteration: refresh one market's long history, run the
+    multi-family sweep, accumulate candidate robustness, return proven candidates
+    (those that survived walk-forward repeatedly). Backtest/simulation only."""
+    from app.research_loop import research_iteration
+
+    ms = [m.strip() for m in markets.split(",") if m.strip()] or None
+    return research_iteration(markets=ms)
+
+
+@mcp.tool()
+def nautilus_proven_candidates() -> dict[str, Any]:
+    """Return strategy candidates PROVEN over many runs (repeated walk-forward survival)."""
+    from app import journal
+
+    return {"proven": journal.proven_candidates(), "live": False}
+
+
+@mcp.tool()
 def nautilus_daily_report() -> dict[str, Any]:
     """Generate the daily trading digest (markdown) from the journal."""
     from app import reports

@@ -34,6 +34,7 @@ services:
       - ./scripts/email-prepare-draft.py:/opt/sarl-maintenance/email-prepare-draft.py:ro
       - ./scripts/trading-daily-digest.py:/opt/data/scripts/trading-daily-digest.py:ro
       - ./scripts/trading-weekly-review.py:/opt/data/scripts/trading-weekly-review.py:ro
+      - ./scripts/trading-research-loop.py:/opt/data/scripts/trading-research-loop.py:ro
       - ./.secrets/ssh:/opt/hermes-ssh:ro
     networks:
       - default
@@ -100,7 +101,7 @@ services:
   # Backtest/simulation only; no live path. Reached by trading agents at
   # http://nautilus-runner-mcp:8200/mcp.
   nautilus-runner-mcp:
-    image: sarl/nautilus-runner:0.10.0
+    image: sarl/nautilus-runner:0.11.0
     build:
       context: ./services/nautilus-runner
     container_name: sarl-nautilus-runner-mcp
@@ -115,6 +116,10 @@ services:
       TRADING_KILL_SWITCH: "false"
       IBKR_HOST: ib-gateway
       IBKR_PORT: "4004"
+    volumes:
+      # Persist journal + historical data so candidate robustness accumulates
+      # across runs/restarts (proven-over-many-attempts requires persistence).
+      - nautilus-data:/srv/data
     expose:
       - "8200"
     healthcheck:
@@ -181,3 +186,4 @@ volumes:
   hermes-agent-data:
   sandbox-docker-data:
   sandbox-shared:
+  nautilus-data:

@@ -53,14 +53,20 @@ def fetch_ibkr_eurusd(duration: str = "2 D", bar_size: str = "1 min",
         ib.reqMarketDataType(3)  # delayed is fine for historical without a subscription
         contract = Forex(symbol)
         ib.qualifyContracts(contract)
-        bars = ib.reqHistoricalData(
-            contract, endDateTime="", durationStr=duration,
-            barSizeSetting=bar_size, whatToShow="MIDPOINT",
-            useRTH=False, formatDate=2,
-        )
+        # Retry a few times: large requests + pacing can time out transiently.
+        bars = []
+        for attempt in range(3):
+            bars = ib.reqHistoricalData(
+                contract, endDateTime="", durationStr=duration,
+                barSizeSetting=bar_size, whatToShow="MIDPOINT",
+                useRTH=False, formatDate=2, timeout=120,
+            )
+            if bars:
+                break
+            ib.sleep(20)  # let pacing cool down between attempts
         df = util.df(bars)
         if df is None or len(df) == 0:
-            return {"ok": False, "reason": "IBKR returned no historical data"}
+            return {"ok": False, "reason": "IBKR returned no historical data (pacing or duration limit)"}
 
         out = df[["date", "open", "high", "low", "close"]].copy()
         out = out.rename(columns={"date": "timestamp"})
