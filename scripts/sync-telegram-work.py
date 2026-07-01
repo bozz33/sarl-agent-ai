@@ -19,7 +19,7 @@ STATE_DB = HERMES_HOME / "state.db"
 INDEX_FILE = HERMES_HOME / "telegram-work-tracking.json"
 HERMES_BIN = os.environ.get("HERMES_BIN", "/opt/hermes/.venv/bin/hermes")
 BOARD = os.environ.get("HERMES_KANBAN_BOARD", "sarl-agent-ai")
-DEFAULT_READY_LOW_RISK = os.environ.get("TELEGRAM_READY_LOW_RISK", "1").strip().lower() not in {
+DEFAULT_RUNNING_LOW_RISK = os.environ.get("TELEGRAM_RUNNING_LOW_RISK", "1").strip().lower() not in {
     "0",
     "false",
     "no",
@@ -223,10 +223,10 @@ def classify_message(message: str) -> dict[str, str | int | bool]:
         reason = "Risque moyen: tâche conservée en Kanban avant dispatch contrôlé."
     else:
         execution = "auto_dispatch_allowed"
-        initial_status = "ready" if DEFAULT_READY_LOW_RISK else "blocked"
+        initial_status = "running" if DEFAULT_RUNNING_LOW_RISK else "blocked"
         reason = (
-            "Tâche low-risk assez cadrée: prête pour dispatch contrôlé."
-            if DEFAULT_READY_LOW_RISK
+            "Tâche low-risk assez cadrée: lancée pour dispatch contrôlé."
+            if DEFAULT_RUNNING_LOW_RISK
             else "Tâche low-risk conservée à qualifier par configuration."
         )
 
@@ -403,7 +403,7 @@ def send_telegram_ack(
             (
                 "Validation humaine requise avant dispatch."
                 if classification["execution"] == "needs_human"
-                else "Tâche prête pour dispatch contrôlé."
+                else "Tâche lancée pour dispatch contrôlé."
             ),
         )
     )

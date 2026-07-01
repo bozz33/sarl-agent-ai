@@ -52,10 +52,11 @@ docker exec -u hermes sarl-hermes-agent \
   /opt/hermes/.venv/bin/hermes -p sarl-orchestrator \
   mcp test sarl_project_memory >/dev/null
 
-# Chat missions are persisted automatically under projects/reports so they are
-# visible from Workspace. Only actual project roots are forbidden at startup.
-test -z "$(find "$ROOT/projects" -mindepth 1 -maxdepth 1 \
-  ! -name '.gitkeep' ! -name 'reports' -print -quit)"
+# Project roots may be mounted into Workspace. Ensure the mount is readable
+# from both host and container instead of requiring it to be empty.
+test -d "$ROOT/projects"
+docker exec -u workspace sarl-hermes-workspace \
+  sh -lc 'find /workspace -mindepth 1 -maxdepth 1 -print >/dev/null'
 test "$(systemctl is-active sarl-workspace-janitor.timer)" = "active"
 
 echo "Healthcheck OK"

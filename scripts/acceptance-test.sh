@@ -79,8 +79,9 @@ COUNTS="$(
 )"
 test "$COUNTS" = $'0\n0\n0'
 
-test -z "$(find projects -mindepth 1 -maxdepth 1 \
-  ! -name '.gitkeep' ! -name 'reports' -print -quit)"
+test -d projects
+docker exec -u workspace sarl-hermes-workspace \
+  sh -lc 'find /workspace -mindepth 1 -maxdepth 1 -print >/dev/null'
 
 LATEST_BACKUP="$(
   find backups/hermes -mindepth 1 -maxdepth 1 -type d \

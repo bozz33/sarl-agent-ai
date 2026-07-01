@@ -37,6 +37,11 @@ RUN pnpm install --frozen-lockfile \
 FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends sqlite3 \
+    && groupadd --gid 10000 workspace \
+    && useradd --uid 10010 --gid 10000 --create-home --shell /bin/bash workspace \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app ./
 EXPOSE 3000
 CMD ["node", "server-entry.js"]
