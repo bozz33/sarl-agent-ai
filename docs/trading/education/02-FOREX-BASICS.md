@@ -19,4 +19,6 @@ banques centrales). La volatilité peut augmenter sans avertissement.
 - Levier = amplifie gains ET pertes. En v1, simulation uniquement, pas de levier réel.
 
 ## v1
-EUR/USD uniquement (liquide, spread faible, macro claire).
+Départ EUR/USD (liquide, spread faible, macro claire). Allow-list actuelle :
+EUR/USD, GBP/USD, USD/JPY. Toute autre paire reste hors périmètre tant qu'elle
+n'est pas explicitement validée.

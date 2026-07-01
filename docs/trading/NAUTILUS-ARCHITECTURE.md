@@ -7,7 +7,8 @@ trading agents (Hermes)
   -> services/nautilus-runner
        app/guards.py    barrière no-live (fail closed)
        app/config.py    allow-lists strategies/markets
-       app/data.py      bars synthétiques déterministes (v1)
+       app/data.py      bars synthétiques déterministes
+       app/ibkr_*.py    validation/fetch IBKR Paper read-only
        app/runner.py    BacktestEngine + export artefacts
        app/journal.py   SQLite (signals/backtests/.../learning_proposals)
        app/reports.py   digests daily/weekly
@@ -20,12 +21,12 @@ trading agents (Hermes)
 ## Principes
 - Hermes ne parle jamais à NautilusTrader ni à un broker directement.
 - Une seule frontière sécurité : `guards.py` + allow-lists + gate de build.
-- v1 : `BacktestEngine` low-level. Migration prévue vers `BacktestNode` +
-  `ParquetDataCatalog` avec données réelles, puis IBKR **paper** (phase 7).
-- Aucun `TradingNode`/`LiveNode`/broker en v1.
+- v1 : `BacktestEngine` low-level. Données synthétiques + IBKR Paper read-only
+  pour validation/fetch historique quand la passerelle est disponible.
+- Aucun `TradingNode`/`LiveNode`/broker live.
 
 ## Flux d'un backtest
-guards -> venue SIM + EUR/USD -> bars BID+ASK EXTERNAL -> stratégie EMA cross
--> run -> summary.json + CSV reports -> journal.
+guards -> venue SIM + marché allow-listé -> bars BID+ASK EXTERNAL -> stratégie
+allow-listée -> run -> summary.json + CSV reports -> journal.
 
 Voir `NAUTILUS-RUNNER-ADAPTER.md`, `NAUTILUS-MCP-INTEGRATION.md`.

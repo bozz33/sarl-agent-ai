@@ -34,8 +34,9 @@ les garde-fous puis exécute. Voir `docs/trading/HERMES-TRADING-BOUNDARY.md`.
 
 ## Interdits
 
-ordre réel · broker direct · TradingNode/LiveNode · IBKR en v1 · outil live ·
-modifier une règle de risque sans validation · déclarer terminé sans artefact.
+ordre réel · broker direct depuis Hermes · TradingNode/LiveNode · outil live ·
+ordre IBKR paper sans validation humaine · modifier une règle de risque sans
+validation · déclarer terminé sans artefact.
 
 ## Definition of done
 

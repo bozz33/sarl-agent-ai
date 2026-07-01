@@ -12,8 +12,9 @@ Deux sens distincts — ne pas confondre :
 ```
 Profils Hermes activés : oui
 Trading live réel       : non
-IBKR réel               : non
-NautilusTrader LiveNode / TradingNode : interdit v1
+IBKR Paper read-only    : oui, via nautilus-runner uniquement
+IBKR réel/live          : non
+NautilusTrader LiveNode / TradingNode : interdit
 ```
 NautilusTrader permet la continuité backtest→live ; c'est précisément pourquoi
 la barrière `no-live` (`app/guards.py` + gate de build) reste stricte.
@@ -26,10 +27,14 @@ améliorations — sans jamais trader en réel.
 
 ## Périmètre v1
 - Moteur : NautilusTrader `BacktestEngine` (via `services/nautilus-runner`).
-- Marché : EUR/USD uniquement.
-- Stratégie : EMA cross (`eurusd_ema_cross`).
-- Données : synthétiques déterministes (réelles via ParquetDataCatalog plus tard).
-- Mode : BACKTEST / SIMULATION. Aucun live, aucun broker, aucun ordre réel.
+- Marchés allow-listés : EUR/USD, GBP/USD, USD/JPY.
+- Stratégies allow-listées : `eurusd_ema_cross`, `eurusd_ema_atr`,
+  `donchian_break`, `bollinger_mr`.
+- Données : synthétiques déterministes et fetch historique IBKR Paper read-only
+  quand la passerelle est disponible.
+- Mode : BACKTEST / SIMULATION. Aucun live, aucun ordre réel.
+- IBKR Paper : connexion validée en lecture/paper uniquement ; pas d'exécution
+  automatique d'ordres paper sans validation humaine explicite.
 
 ## Acteurs
 ```
@@ -60,11 +65,30 @@ journal complet · 100 % backtest · 0 live · 0 violation garde-fou ·
 rapports présents · règles améliorées avec validation · capacité à dire NO_TRADE.
 On juge la discipline et la rigueur, pas seulement le PnL.
 
-## État (2026-06-29)
-- Service `nautilus-runner` : implémenté, backtest EUR/USD EMA-cross qui tourne,
-  14 tests verts, image `sarl/nautilus-runner:0.1.0` (build gate no-live OK).
-- Docs sécurité : boundary / no-live / no-broker / no-real-money / adapter / sources.
-- À faire : corpus education, profils swarm, skills, journal.db, scheduler, rapports.
+## État (2026-07-01)
+- Service `nautilus-runner-mcp` : déployé et healthy, image
+  `sarl/nautilus-runner:0.12.1`.
+- Tests : `35 passed` dans le conteneur déployé (`/srv/tests`).
+- MCP : 12 tools allow-listés, dont validation environnement, backtest,
+  walk-forward, sweep, rapports, mission bornée, validation/fetch IBKR Paper
+  read-only.
+- Sécurité : `NAUTILUS_ENVIRONMENT=BACKTEST`, `TRADING_PAPER_ONLY=true`,
+  `TRADING_LIVE_ENABLED=false`, pas de `TradingNode`/`LiveNode`.
+- IBKR Paper : passerelle connectée et compte paper validé (`DU...`) en
+  lecture uniquement. Live réel et ordres réels restent interdits.
+- Journal/apprentissage : `journal.db` actif avec backtests, rapports,
+  propositions d'apprentissage et candidats de stratégie.
+- Qualité stratégie : au moins un candidat marqué `proven` par le journal,
+  mais les backtests récents restent mixtes/majoritairement négatifs. Aucune
+  stratégie n'est validée pour trading paper automatisé ou production.
+
+## Phase actuelle
+```
+Phase 1 — Demo/backtest Hermes + Nautilus : fonctionnelle
+Phase 1.5 — Orchestration complète via sarl-orchestrator : à durcir
+Phase 2 — IBKR Paper : connectivité read-only validée, exécution non autorisée
+Phase 3 — Live réel : interdit / hors périmètre
+```
 
 Voir `HERMES-TRADING-BOUNDARY.md`, `NO-LIVE-TOOLS.md`, `NAUTILUS-RUNNER-ADAPTER.md`,
 `NO-REAL-MONEY-POLICY.md`, `SOURCES.md`.

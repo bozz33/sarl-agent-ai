@@ -1,6 +1,13 @@
 # NAUTILUS-IBKR-PAPER-PHASE2.md
 
-Phase FUTURE uniquement. Pas en v1. IBKR **paper**, jamais live.
+Phase 2 partielle. IBKR **paper**, jamais live.
+
+État 2026-07-01 :
+- Passerelle `ib-gateway` lancée sous profil `ibkr`.
+- `nautilus-runner` joint `ib-gateway:4004`.
+- `validate-ibkr` confirme un compte paper (`DU...`) et `live=false`.
+- Usage autorisé : validation et récupération de données historiques read-only.
+- Usage non autorisé : ordre paper automatisé, ordre réel, live trading.
 
 ## Pré-requis (actions humaines)
 - Compte IBKR + paper trading activé.
@@ -20,6 +27,7 @@ Phase FUTURE uniquement. Pas en v1. IBKR **paper**, jamais live.
 - Aucun `TradingNode` live, aucun ordre réel.
 - Activation = validation humaine + revue Governor + tests no-live verts.
 
-## Critère d'entrée en phase 2
-backtest local stable · journal OK · risk-manager OK · 30 j d'apprentissage
-propre · décision humaine explicite. Voir `MONTH-1-LEARNING-PLAN.md`.
+## Critère avant exécution paper automatisée
+backtests robustes · journal OK · risk-manager OK · 30 j d'apprentissage
+propre · stratégie approuvée · décision humaine explicite. Voir
+`MONTH-1-LEARNING-PLAN.md`.

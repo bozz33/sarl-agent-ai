@@ -16,8 +16,9 @@ performance · erreurs · conditions gagnantes/perdantes · rapport hebdo ·
 proposition d'amélioration · review Governor · validation humaine si règle change.
 
 ## Calendrier
-- Semaine 1-2 : EUR/USD uniquement, stratégie EMA cross, stabiliser le pipeline.
-- Semaine 3-4 : analyse erreurs, walk-forward, propositions d'amélioration.
+- Semaine 1-2 : stabiliser le pipeline EUR/USD + EMA cross.
+- Semaine 3-4 : analyse erreurs, walk-forward, sweeps bornés sur marchés et
+  stratégies allow-listés, propositions d'amélioration.
 
 ## Apprentissage autorisé sans validation
 journal · rapports · statistiques · propositions · tâches Kanban · mémoire non sensible.

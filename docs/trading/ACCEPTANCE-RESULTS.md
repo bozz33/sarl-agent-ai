@@ -4,13 +4,17 @@ Résultats réels du test d'acceptation du module `sarl-module-trading-demo`.
 Date : 2026-06-29. Mode : BACKTEST/SIMULATION only. Gemini retiré du trading.
 Règle : chaque ligne = artefact vérifié, pas déclaration d'agent.
 
+Mise à jour : 2026-07-01. Le service a évolué depuis la validation initiale :
+35 tests verts, 12 tools MCP, IBKR Paper validé en lecture/paper uniquement.
+
 ## 1. Tests unitaires
-`22 passed` — `services/nautilus-runner/tests` (dans le container déployé).
+`35 passed` — `/srv/tests` dans le container déployé `sarl-nautilus-runner-mcp`.
 
 ## 2. E2E service (CLI)
 ```
 validate-environment : ok, nautilus 1.230.0, paper_only=true, BACKTEST
-run-backtest         : 22 ordres, 11 positions, PnL=8443.77, live=false
+run-backtest         : produit ordres/positions + PnL, live=false
+validate-ibkr        : ok, account_mode=PAPER, gateway=ib-gateway:4004, live=false
 artefacts            : summary.json + account/fills/orders/positions_report.csv
 journal              : backtests enregistrés, daily_reports générés
 ```
@@ -19,7 +23,10 @@ journal              : backtests enregistrés, daily_reports générés
 ```
 hermes mcp test sarl_nautilus_runner :
   ✓ Connected → http://nautilus-runner-mcp:8200/mcp
-  ✓ Tools discovered: 5 (validate/run-backtest/generate-report/daily-report/run-mission)
+  ✓ Tools discovered: 12
+    validate-environment, run-backtest, walk-forward, validate-ibkr,
+    fetch-ibkr-data, run-sweep, research-iteration, proven-candidates,
+    robustness-ladder, generate-report, daily-report, run-mission
   aucun tool live
 ```
 
@@ -47,8 +54,9 @@ commentaires de garde-fous). Toolsets restreints (computer_use/social/... désac
 Chaîne trading bout-en-bout : FONCTIONNELLE
 Gemini dans le trading       : ZÉRO
 Garde-fous no-live           : confirmés
-Ordre réel / broker / IBKR   : aucun (interdit)
+Ordre réel / broker live      : aucun (interdit)
+IBKR Paper read-only          : validé via nautilus-runner
 Résilience fallback          : prouvée
 ```
-Hors-scope v1 : délégation auto via sarl-orchestrator (couche router gemini),
-Phase 7 IBKR paper (future + validation humaine).
+Hors-scope actuel : délégation auto complète via sarl-orchestrator,
+exécution trading paper automatisée, live réel.

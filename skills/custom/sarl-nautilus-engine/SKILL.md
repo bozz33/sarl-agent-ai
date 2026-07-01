@@ -1,6 +1,6 @@
 ---
 name: sarl-nautilus-engine
-description: Encadrer l'usage de NautilusTrader dans le module trading via services/nautilus-runner. Impose BacktestNode/BacktestEngine, ParquetDataCatalog, EUR/USD, aucun TradingNode, aucun live, artefacts obligatoires, basé sur la doc officielle NautilusTrader.
+description: Encadrer l'usage de NautilusTrader dans le module trading via services/nautilus-runner. Impose BacktestEngine, marchés/stratégies allow-listés, aucun TradingNode, aucun live, artefacts obligatoires, basé sur la doc officielle NautilusTrader.
 ---
 
 # Skill — sarl-nautilus-engine
@@ -17,10 +17,11 @@ Dès qu'une mission implique de lancer ou configurer un backtest NautilusTrader.
 ## Règles
 
 - Décisions moteur basées sur la doc officielle (`docs/trading/SOURCES.md`).
-- v1 : `BacktestEngine` low-level, venue `SIM`, EUR/USD, stratégie `eurusd_ema_cross`.
+- v1 : `BacktestEngine` low-level, venue `SIM`, marchés et stratégies allow-listés.
 - Bars `EXTERNAL` BID + ASK (sinon ordres rejetés NO_LIQUIDITY_SIDE).
-- Plus tard : `BacktestNode` + `ParquetDataCatalog` avec données historiques réelles.
-- Jamais : `TradingNode`, `LiveNode`, connecteur broker, IBKR en v1.
+- IBKR Paper est autorisé uniquement via `nautilus-runner`, en validation/fetch
+  read-only, jamais depuis Hermes directement.
+- Jamais : `TradingNode`, `LiveNode`, connecteur broker direct, ordre live.
 - Artefacts obligatoires : `summary.json`, `orders/fills/positions/account_report.csv`.
 
 ## Contrat d'appel runner

@@ -1,10 +1,12 @@
 # FOREX-PLAYBOOK.md
 
-Playbook v1 (backtest). Marché unique au départ : EUR/USD.
+Playbook v1 (backtest). Départ : EUR/USD. Extension contrôlée : GBP/USD,
+USD/JPY.
 
 ## Paires
-- v1 : EUR/USD uniquement (liquide, spread faible, macro claire).
-- Plus tard : GBP/USD (plus volatil), USD/JPY (sensible aux taux). XAU/USD prudence.
+- v1 initial : EUR/USD (liquide, spread faible, macro claire).
+- Allow-list actuelle : EUR/USD, GBP/USD, USD/JPY.
+- Hors allow-list : XAU/USD et autres marchés tant qu'ils ne sont pas validés.
 
 ## Sessions
 - Londres + New York = liquidité maximale. Asie = souvent range.
@@ -30,5 +32,6 @@ range confus · spread élevé · news proche · signal contradictoire ·
 données incomplètes · volatilité anormale · limite journalière atteinte.
 
 ## Stratégie v1 implémentée
-`eurusd_ema_cross` (EMA cross) via `services/nautilus-runner`. Évolutions :
-filtre ATR, règles no-trade, walk-forward, avant tout ajout de marché.
+`eurusd_ema_cross`, `eurusd_ema_atr`, `donchian_break`, `bollinger_mr` via
+`services/nautilus-runner`. Toute promotion exige walk-forward, robustesse,
+journal et validation humaine.

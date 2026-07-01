@@ -25,7 +25,8 @@ The Governor protects the system. The human validates dangerous steps.
 - Talk to a broker or hold broker credentials.
 - Start a `TradingNode` or `LiveNode`.
 - Place / modify / cancel a real order.
-- Connect IBKR (live or paper) in v1.
+- Connect IBKR directly or hold IBKR credentials.
+- Place / modify / cancel an IBKR paper order without explicit human approval.
 - Add a live tool or remove a guard.
 - Change a risk rule without human validation.
 
